@@ -29,6 +29,8 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.BlurredEdgeTreatment
@@ -69,6 +71,10 @@ fun CameraScreen(navController: NavController) {
     val renderer = CameraRenderer(session, display)
     val lifecycleOwner = LocalLifecycleOwner.current
 
+    val colorProbes by viewModel.colorProbes.collectAsState()
+    val cameraState by viewModel.cameraState.collectAsState()
+    val activeProbeId by viewModel.activeProbeId.collectAsState()
+
     // https://developer.android.com/develop/ui/compose/migrate/interoperability-apis/views-in-compose
     AndroidView(factory = { context ->
         // https://developer.android.com/reference/android/opengl/GLSurfaceView
@@ -81,7 +87,6 @@ fun CameraScreen(navController: NavController) {
         .fillMaxSize()
         .pointerInput(Unit) {
             detectTapGestures(onTap = { offset ->
-                // TODO: The following code should be extracted into the 'viewModel':
                 // INFO: Currently, ARCore is used for camera and position data. This may change in
                 // INFO: the future. A custom interface should be added to allow for different
                 // INFO: implementations.
@@ -94,10 +99,11 @@ fun CameraScreen(navController: NavController) {
                     Log.d("CameraView.CameraScreen", "Hit test failed.")
                 } while (hitResults.isEmpty())
                 Log.d("CameraView.CameraScreen", "Hit test succeeded.")
-                // TODO: Every anchor should be stored in the 'viewModel' so it can be properly
-                // TODO: disposed of when it is not needed anymore:
                 // INFO: Currently leads to a crash; tracking state needs to be checked beforehand.
                 // anchor = hitResults.get(0).createAnchor()
+
+                // Extract hit test logic into CameraViewModel
+                viewModel.onCameraTap(offset, hitResults, renderer)
             })
         }, update = { view ->
         val glView = view as GLSurfaceView
@@ -127,13 +133,24 @@ fun CameraScreen(navController: NavController) {
         lifecycleOwner.lifecycle.addObserver(observer)
     })
 
-    ColorProbeOverlay(listOf(0, 1, 2, 3, 4))
+    // Use ViewModel data for ColorProbeOverlay
+    ColorProbeOverlay(
+        colorProbes = colorProbes,
+        activeProbeId = activeProbeId,
+        onProbeSingleTap = viewModel::onProbeSingleTap,
+        onProbeDoubleTap = viewModel::onProbeDoubleTap,
+        onProbeDragStart = viewModel::onProbeDragStart,
+        onProbeDragEnd = viewModel::onProbeDragEnd,
+        onProbePositionUpdate = viewModel::updateProbePosition
+    )
+
     Box(modifier = Modifier.fillMaxSize()) {
         ControlRow(
             modifier = Modifier
                 .align(Alignment.BottomCenter)
                 .padding(bottom = 32.dp),
-            navController = navController
+            navController = navController,
+            viewModel = viewModel
         )
     }
 }
@@ -149,42 +166,26 @@ fun CameraScreenPreview() {
 
 @Composable
 fun ColorProbeOverlay(
-    points: List<Int>,
-    modifier: Modifier = Modifier,
+    colorProbes: List<ColorProbeData>,
+    activeProbeId: Int?,
+    onProbeSingleTap: (Int) -> Unit,
+    onProbeDoubleTap: (Int) -> Unit,
+    onProbeDragStart: (Int, Offset) -> Unit,
+    onProbeDragEnd: (Int) -> Unit,
+    onProbePositionUpdate: (Int, IntOffset) -> Unit,
+    modifier: Modifier = Modifier
 ) {
-    // TODO: This code is just a placeholder and should render actual points from the 'viewModel'!
-    val refreshTrigger = remember { mutableIntStateOf(0) }
-
-    LaunchedEffect(Unit) {
-        while (true) {
-            delay(2000)
-            refreshTrigger.intValue = (refreshTrigger.intValue + 1) % Int.MAX_VALUE
-        }
-    }
-
-    val random = Random(refreshTrigger.intValue)
-    val display = LocalContext.current.display
-
     Box(modifier = modifier.fillMaxSize()) {
-        points.forEach { point ->
-            key(point) {
-                val color = generateColor()
-                val offset = IntOffset(
-                    (random.nextFloat() * display.width).toInt(),
-                    (random.nextFloat() * display.height).toInt()
-                )
-
-                ColorProbe(
-                    color = color,
-                    offset = offset,
-                    onSingleTap = {},
-                    onDoubleTap = {},
-                    onDragStart = {},
-                    onDragEnd = {},
-                    isActive = false
-                )
-
-            }
+        colorProbes.forEach { probe ->
+            ColorProbe(
+                color = probe.color,
+                offset = probe.position,
+                onSingleTap = { onProbeSingleTap(probe.id) },
+                onDoubleTap = { onProbeDoubleTap(probe.id) },
+                onDragStart = { offset -> onProbeDragStart(probe.id, offset) },
+                onDragEnd = { onProbeDragEnd(probe.id) },
+                isActive = probe.id == activeProbeId
+            )
         }
     }
 }
@@ -263,21 +264,30 @@ fun ColorProbe(
 }
 
 @Composable
-fun ControlRow(modifier: Modifier, navController: NavController) {
+fun ControlRow(
+    modifier: Modifier,
+    navController: NavController,
+    viewModel: CameraViewModel,
+) {
     Row(
         modifier.fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.SpaceEvenly
     ) {
-        PhotoLibraryNavButton(navController = navController)
-        CaptureButton()
+        PhotoLibraryNavButton(
+            navController = navController,
+            viewModel = viewModel
+        )
+        CaptureButton(viewModel = viewModel)
         ColorGalleryNavButton(navController = navController)
     }
 }
 
 @Composable
 fun CaptureButton(
-    modifier: Modifier = Modifier, innerColor: Color = Color.DarkGray
+    modifier: Modifier = Modifier,
+    innerColor: Color = Color.DarkGray,
+    viewModel: CameraViewModel,
 ) {
     Box(
         modifier = modifier
@@ -288,13 +298,18 @@ fun CaptureButton(
             .padding(4.dp)
             .clip(RoundedCornerShape(50))
             .background(innerColor)
-            .combinedClickable(onClick = {
-                // TODO: Save single probe to gallery (using 'viewModel').
-                Log.d("CameraView.CaptureButton", "Short press of capture button.")
-            }, onLongClick = {
-                // TODO: Save multiple probes to gallery (using 'viewModel').
-                Log.d("CameraView.CaptureButton", "Long press of capture button.")
-            })
+            .combinedClickable(
+                onClick = {
+                    // Save single probe to gallery (using 'viewModel').
+                    Log.d("CameraView.CaptureButton", "Short press of capture button.")
+                    viewModel.captureCurrentProbe()
+                },
+                onLongClick = {
+                    // Save multiple probes to gallery (using 'viewModel').
+                    Log.d("CameraView.CaptureButton", "Long press of capture button.")
+                    viewModel.captureAllProbes()
+                }
+            )
     )
 }
 
@@ -322,16 +337,21 @@ fun DropShadowIconButton(resource: Int, contentDescription: String?, onClick: ()
 }
 
 @Composable
-fun PhotoLibraryNavButton(navController: NavController) {
-    val launcher =
-        rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
-            // TODO: After the image has been selected, multiple things need to happen:
-            // TODO: - The ARCore session has to be stopped;
-            // TODO: - The image has to be loaded;
-            // TODO: - The OpenGL surface has to be filled with the image;
-            // TODO: - The photo library icon to be changed to 'R.drawable.ic_photo_camera'.
-            Log.d("CameraView.PhotoLibraryNavButton", "URI = $uri")
-        }
+fun PhotoLibraryNavButton(
+    navController: NavController,
+    viewModel: CameraViewModel,
+) {
+    val launcher = rememberLauncherForActivityResult(
+        ActivityResultContracts.PickVisualMedia()
+    ) { uri ->
+        // After the image has been selected, multiple things happen:
+        // - The ARCore session has to be stopped;
+        // - The image has to be loaded;
+        // - The OpenGL surface has to be filled with the image;
+        // - The photo library icon to be changed to 'R.drawable.ic_photo_camera'.
+        Log.d("CameraView.PhotoLibraryNavButton", "URI = $uri")
+        uri?.let { viewModel.onPhotoSelected(it) }
+    }
     DropShadowIconButton(R.drawable.ic_photo_library, "Photo Library", {
         launcher.launch(
             PickVisualMediaRequest(
