@@ -142,8 +142,8 @@ fun DetailScreen(navController: NavController) {
                 HorizontalPager(state = pagerState) { page ->
                     when (page) {
                         0 -> ColorTab()
-                        1 -> PalettesTab()
-                        2 -> PhotosTab()
+                        1 -> PaletteTab()
+                        2 -> PhotoTab()
                     }
                 }
             }
@@ -242,12 +242,12 @@ fun RowScope.ColorSlider(state: SliderState) {
 }
 
 @Composable
-fun PalettesTab() {
+fun PaletteTab() {
     Text("PalettesTab")
 }
 
 @Composable
-fun PhotosTab() {
+fun PhotoTab() {
     Text("PhotosTab")
 }
 
