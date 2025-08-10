@@ -12,6 +12,9 @@ interface ColorDao {
     @Insert
     suspend fun insertColor(color: ColorEntity): Long
 
+    @Query("SELECT * FROM colors")
+    suspend fun getAll(): List<ColorEntity>
+
     @Query("SELECT * FROM colors WHERE id = :id")
     suspend fun getColorWithPhoto(id: Long): ColorWithPhoto
 }

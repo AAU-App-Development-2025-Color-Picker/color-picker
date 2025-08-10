@@ -13,7 +13,7 @@ interface PaletteDao {
     suspend fun insertPalette(palette: PaletteEntity): Long
 
     @Query("SELECT * FROM palettes")
-    suspend fun getAllPalettes(): List<PaletteEntity>
+    suspend fun getAll(): List<PaletteEntity>
 
     @Query("SELECT * FROM palettes WHERE id = :id")
     suspend fun getPaletteWithColors(id: Long): PaletteWithColor

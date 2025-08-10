@@ -19,7 +19,7 @@ import at.aau.appdev.colorpicker.persistence.entity.PhotoEntity
     version = 1,
     exportSchema = true,
 )
-abstract class AppDatabase : RoomDatabase() {
+abstract class Database : RoomDatabase() {
     abstract fun colorDao(): ColorDao
     abstract fun paletteDao(): PaletteDao
     abstract fun photoDao(): PhotoDao
