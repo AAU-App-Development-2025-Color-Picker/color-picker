@@ -24,7 +24,9 @@ import at.aau.appdev.colorpicker.gallery.GalleryScreen
 import at.aau.appdev.colorpicker.ui.theme.ColorPickerTheme
 import com.google.ar.core.Config
 import com.google.ar.core.Session
+import dagger.hilt.android.AndroidEntryPoint
 
+@AndroidEntryPoint
 class MainActivity : ComponentActivity() {
 
     internal var session: Session? = null
