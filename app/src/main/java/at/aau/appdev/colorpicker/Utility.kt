@@ -1,7 +1,6 @@
 package at.aau.appdev.colorpicker
 
 import androidx.compose.ui.graphics.Color
-import at.aau.appdev.colorpicker.gallery.DiscreteDistribution
 import kotlin.random.Random
 
 fun generateColor(): Color {
@@ -43,4 +42,19 @@ fun interpolate(a: Float, b: Float, t: Float): Float {
 
 fun randomJitter(): Float {
     return Random.nextFloat() * 0.1f - 0.05f
+}
+
+class DiscreteDistribution(private val outcomes: List<Int>, weights: List<Double>) {
+    private val cumulative: List<Double>
+
+    init {
+        val total = weights.sum()
+        cumulative = weights.runningFold(0.0) { acc, weight -> acc + weight / total }.drop(1)
+    }
+
+    fun sample(): Int {
+        val r = Random.nextDouble()
+        val index = cumulative.indexOfFirst { r <= it }
+        return outcomes[index]
+    }
 }

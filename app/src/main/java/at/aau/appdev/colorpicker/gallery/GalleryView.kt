@@ -270,20 +270,3 @@ private fun BoxScope.Label(label: String) {
         )
     }
 }
-
-// TODO: This class is only needed for previews because there is no 'viewModel' yet;
-// TODO: remove in the future.
-class DiscreteDistribution(private val outcomes: List<Int>, weights: List<Double>) {
-    private val cumulative: List<Double>
-
-    init {
-        val total = weights.sum()
-        cumulative = weights.runningFold(0.0) { acc, weight -> acc + weight / total }.drop(1)
-    }
-
-    fun sample(): Int {
-        val r = Random.nextDouble()
-        val index = cumulative.indexOfFirst { r <= it }
-        return outcomes[index]
-    }
-}
