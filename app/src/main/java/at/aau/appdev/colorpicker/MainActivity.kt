@@ -99,11 +99,21 @@ fun NavigationHost(modifier: Modifier = Modifier, navController: NavHostControll
         ) { GalleryScreen(navController) }
 
         composable(
+            route = "gallery/{id}", arguments = listOf(navArgument("label") {
+                type = NavType.StringType; defaultValue = "Gallery"
+            })
+        ) { navBackStackEntry ->
+            GalleryScreen(navController, navBackStackEntry.id)
+        }
+
+        composable(
             route = "detail/{id}", arguments = listOf(navArgument("label") {
                 type = NavType.StringType; defaultValue = "Detail"
             }, navArgument("id") {
                 type = NavType.IntType; defaultValue = 0
             })
-        ) { DetailScreen(navController) }
+        ) { navBackStackEntry ->
+            DetailScreen(navController, navBackStackEntry.id)
+        }
     }
 }

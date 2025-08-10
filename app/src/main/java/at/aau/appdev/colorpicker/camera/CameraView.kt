@@ -38,6 +38,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
@@ -277,17 +278,16 @@ fun ControlRow(modifier: Modifier, navController: NavController) {
 
 @Composable
 fun CaptureButton(
-    modifier: Modifier = Modifier, innerColor: Color = Color.DarkGray
+    modifier: Modifier = Modifier,
+    color: Color = Color.DarkGray,
+    shape: Shape = RoundedCornerShape(50)
 ) {
     Box(
         modifier = modifier
             .size(160.dp, 60.dp)
-            .shadow(8.dp, RoundedCornerShape(50), clip = false)
-            .clip(RoundedCornerShape(50))
-            .background(Color.White)
-            .padding(4.dp)
-            .clip(RoundedCornerShape(50))
-            .background(innerColor)
+            .shadow(8.dp, shape, clip = false)
+            .background(color, shape)
+            .border(4.dp, Color.White, shape)
             .combinedClickable(onClick = {
                 // TODO: Save single probe to gallery (using 'viewModel').
                 Log.d("CameraView.CaptureButton", "Short press of capture button.")
@@ -304,10 +304,10 @@ fun DropShadowIconButton(resource: Int, contentDescription: String?, onClick: ()
         Icon(
             painter = painterResource(resource),
             contentDescription = null,
-            tint = Color.Black,
             modifier = Modifier
                 .blur(12.dp, edgeTreatment = BlurredEdgeTreatment.Unbounded)
-                .alpha(0.2f)
+                .alpha(0.2f),
+            tint = Color.Black
         )
         IconButton(
             onClick = onClick, modifier = Modifier.size(64.dp)
@@ -325,11 +325,6 @@ fun DropShadowIconButton(resource: Int, contentDescription: String?, onClick: ()
 fun PhotoLibraryNavButton(navController: NavController) {
     val launcher =
         rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
-            // TODO: After the image has been selected, multiple things need to happen:
-            // TODO: - The ARCore session has to be stopped;
-            // TODO: - The image has to be loaded;
-            // TODO: - The OpenGL surface has to be filled with the image;
-            // TODO: - The photo library icon to be changed to 'R.drawable.ic_photo_camera'.
             Log.d("CameraView.PhotoLibraryNavButton", "URI = $uri")
         }
     DropShadowIconButton(R.drawable.ic_photo_library, "Photo Library", {
