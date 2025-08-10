@@ -21,13 +21,22 @@ import androidx.compose.foundation.lazy.staggeredgrid.LazyVerticalStaggeredGrid
 import androidx.compose.foundation.lazy.staggeredgrid.StaggeredGridCells
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.FloatingActionButton
+import androidx.compose.material3.FloatingActionButtonMenu
+import androidx.compose.material3.FloatingActionButtonMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.ToggleFloatingActionButton
+import androidx.compose.material3.animateFloatingActionButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -49,7 +58,10 @@ import at.aau.appdev.colorpicker.ui.theme.ColorPickerTheme
 import kotlin.random.Random
 
 @Composable
-fun GalleryScreen(navController: NavController) {
+fun GalleryScreen(
+    navController: NavController,
+    navId: String? = null,
+) {
     val viewModel: GalleryViewModel = viewModel()
 
     Scaffold { padding ->
@@ -78,7 +90,7 @@ fun GalleryScreen(navController: NavController) {
                 CardStaggeredGrid()
             }
             CameraNavButton(navController)
-            // ActionButton(navController)
+            ActionButton(navController)
         }
     }
 }
@@ -86,7 +98,7 @@ fun GalleryScreen(navController: NavController) {
 @Composable
 fun BoxScope.CameraNavButton(navController: NavController) {
     FloatingActionButton(
-        onClick = { navController.navigate("camera") },
+        onClick = { navController.navigate("detail/1") },
         modifier = Modifier
             .padding(24.dp)
             .size(64.dp)
@@ -95,6 +107,37 @@ fun BoxScope.CameraNavButton(navController: NavController) {
         Icon(
             painter = painterResource(R.drawable.ic_view_in_ar), contentDescription = "Camera View"
         )
+    }
+}
+
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
+@Composable
+fun BoxScope.ActionButton(navController: NavController) {
+    var isExpanded by remember { mutableStateOf(false) }
+    FloatingActionButtonMenu(
+        expanded = isExpanded,
+        modifier = Modifier
+            .padding(24.dp)
+            .align(Alignment.BottomEnd),
+        button = {
+            ToggleFloatingActionButton(
+                modifier = Modifier.animateFloatingActionButton(
+                    visible = true,
+                    alignment = Alignment.TopStart,
+                ),
+                checked = isExpanded,
+                onCheckedChange = { isExpanded = !isExpanded },
+            ) {
+                Icon(
+                    painter = painterResource(R.drawable.ic_open_fullscreen),
+                    contentDescription = "Camera View"
+                )
+            }
+        }) {
+        FloatingActionButtonMenuItem(onClick = {}, text = { Text("One") }, icon = {})
+        FloatingActionButtonMenuItem(onClick = {}, text = { Text("Two") }, icon = {})
+        FloatingActionButtonMenuItem(onClick = {}, text = { Text("Three") }, icon = {})
+
     }
 }
 
