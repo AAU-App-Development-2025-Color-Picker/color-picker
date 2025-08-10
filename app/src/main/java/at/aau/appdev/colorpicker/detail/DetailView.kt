@@ -1,8 +1,8 @@
 package at.aau.appdev.colorpicker.detail
 
+import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.ExperimentalSharedTransitionApi
-import androidx.compose.animation.animateContentSize
-import androidx.compose.animation.core.tween
+import androidx.compose.animation.SharedTransitionLayout
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -67,86 +67,123 @@ import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalSharedTransitionApi::class)
 @Composable
-fun DetailScreen(navController: NavController) {
+fun DetailScreen(
+    navController: NavController,
+    navId: String? = null,
+) {
     val viewModel: DetailViewModel = viewModel()
 
     Scaffold { padding ->
-        Box(modifier = Modifier.fillMaxSize()) {
-            Column(
-                verticalArrangement = Arrangement.spacedBy(8.dp),
-                modifier = Modifier
-                    .padding(padding)
-                    .padding(horizontal = 8.dp)
-            ) {
-                Row(
-                    Modifier
-                        .fillMaxWidth()
-                        .padding(8.dp),
-                    horizontalArrangement = Arrangement.Start,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    IconButton(onClick = {}, modifier = Modifier.size(64.dp)) {
-                        Icon(
-                            painter = painterResource(R.drawable.ic_arrow_back),
-                            contentDescription = "Back to Gallery",
-                            tint = Color.Black
-                        )
-                    }
-                }
-
-                // TODO: Maybe it makes sense to
-                var isFullscreen by remember { mutableStateOf(false) }
-                Box(
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(8.dp))
-                        .background(generateColor())
-                        .animateContentSize(animationSpec = tween(durationMillis = 400))
-                        .clickable() {
-                            isFullscreen = !isFullscreen
-                        }
-                        .then(
-                            if (isFullscreen) {
-                                Modifier.fillMaxSize()
-                            } else {
-                                Modifier.fillMaxWidth().aspectRatio(2.0f)
-                            }
-                        ),
-                )
-
-                Text("Name of the Color", fontSize = 36.sp, fontWeight = FontWeight.Bold)
-
-                // TODO: The tab row and the horizontal pager should always use the same index!
-                val coroutineScope = rememberCoroutineScope()
-                val pagerState = rememberPagerState(pageCount = { 3 })
-                val titles = listOf("Color", "Palette", "Photo")
-                var selected by remember { mutableStateOf(0) }
-                PrimaryTabRow(selected) {
-                    titles.forEachIndexed { index, title ->
-                        Tab(
-                            selected = selected == index,
-                            onClick = {
-                                selected = index
-                                coroutineScope.launch {
-                                    pagerState.animateScrollToPage(selected)
-                                }
-                            },
-                            text = {
-                                Text(
-                                    text = title, maxLines = 2, overflow = TextOverflow.Ellipsis
+        // https://developer.android.com/develop/ui/compose/animation/shared-elements
+        SharedTransitionLayout {
+            var isFullscreen by remember { mutableStateOf(false) }
+            AnimatedContent(isFullscreen) { targetState ->
+                if (targetState) {
+                    Box(
+                        modifier = Modifier
+                            .sharedElement(
+                                rememberSharedContentState(key = "color-swatch"),
+                                animatedVisibilityScope = this@AnimatedContent
+                            )
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(generateColor())
+                            .fillMaxSize()
+                            .clickable() {
+                                isFullscreen = !isFullscreen
+                            }) {
+                        Text(
+                            "Name of the Color",
+                            fontSize = 36.sp,
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier
+                                .sharedElement(
+                                    rememberSharedContentState(key = "color-name"),
+                                    animatedVisibilityScope = this@AnimatedContent
                                 )
-                            },
+                                .align(Alignment.BottomStart)
                         )
                     }
-                }
 
-                HorizontalPager(state = pagerState) { page ->
-                    when (page) {
-                        0 -> ColorTab()
-                        1 -> PalettesTab()
-                        2 -> PhotosTab()
+                } else {
+                    Column(
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                        modifier = Modifier
+                            .padding(padding)
+                            .padding(horizontal = 8.dp)
+                    ) {
+                        Row(
+                            Modifier
+                                .fillMaxWidth()
+                                .padding(8.dp),
+                            horizontalArrangement = Arrangement.Start,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            IconButton(onClick = {}, modifier = Modifier.size(64.dp)) {
+                                Icon(
+                                    painter = painterResource(R.drawable.ic_arrow_back),
+                                    contentDescription = "Back to Gallery",
+                                    tint = Color.Black
+                                )
+                            }
+                        }
+
+                        Box(
+                            modifier = Modifier
+                                .sharedElement(
+                                    rememberSharedContentState(key = "color-swatch"),
+                                    animatedVisibilityScope = this@AnimatedContent
+                                )
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(generateColor())
+                                .fillMaxWidth()
+                                .aspectRatio(2.0f)
+                                .clickable() {
+                                    isFullscreen = !isFullscreen
+                                })
+
+                        Text(
+                            "Name of the Color",
+                            fontSize = 36.sp,
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier.sharedElement(
+                                rememberSharedContentState(key = "color-name"),
+                                animatedVisibilityScope = this@AnimatedContent
+                            )
+                        )
+
+                        val coroutineScope = rememberCoroutineScope()
+                        val pagerState = rememberPagerState(pageCount = { 3 })
+                        val titles = listOf("Color", "Palette", "Photo")
+                        PrimaryTabRow(pagerState.currentPage) {
+                            titles.forEachIndexed { index, title ->
+                                Tab(
+                                    selected = pagerState.currentPage == index,
+                                    onClick = {
+                                        coroutineScope.launch {
+                                            pagerState.animateScrollToPage(index)
+                                        }
+                                    },
+                                    text = {
+                                        Text(
+                                            text = title,
+                                            maxLines = 2,
+                                            overflow = TextOverflow.Ellipsis
+                                        )
+                                    },
+                                )
+                            }
+                        }
+                        HorizontalPager(state = pagerState) { page ->
+                            when (page) {
+                                0 -> ColorTab()
+                                1 -> PaletteTab()
+                                2 -> PhotoTab()
+                            }
+                        }
                     }
                 }
             }
+
         }
     }
 }
@@ -184,22 +221,19 @@ fun ColorTab() {
         }
 
         // TODO: The slider state should be bound to the 'viewModel'!
-        val red = rememberSliderState(0.5f)
-        val green = rememberSliderState(0.5f)
-        val blue = rememberSliderState(0.5f)
+        val sliderStates = listOf(
+            rememberSliderState(0.5f),
+            rememberSliderState(0.6f),
+            rememberSliderState(0.9f),
+        )
 
-        // TODO: This code only works for the RGB representation of the color;
-        // TODO: instead, the layout should be generated dynamically based on
-        // TODO: the selected representation!
         Row(
             horizontalArrangement = Arrangement.SpaceEvenly,
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(vertical = 16.dp)
         ) {
-            ColorSlider(red)
-            ColorSlider(green)
-            ColorSlider(blue)
+            sliderStates.forEach { sliderState -> ColorSlider(sliderState) }
         }
     }
 }
@@ -214,7 +248,7 @@ fun RowScope.ColorSlider(state: SliderState) {
     ) {
         OutlinedTextField(
             TextFieldState(),
-            label = { Text("Ehhh?") },
+            label = { Text("256") },
             modifier = Modifier.padding(horizontal = 16.dp)
         )
         Slider(
@@ -242,12 +276,12 @@ fun RowScope.ColorSlider(state: SliderState) {
 }
 
 @Composable
-fun PalettesTab() {
+fun PaletteTab() {
     Text("PalettesTab")
 }
 
 @Composable
-fun PhotosTab() {
+fun PhotoTab() {
     Text("PhotosTab")
 }
 
