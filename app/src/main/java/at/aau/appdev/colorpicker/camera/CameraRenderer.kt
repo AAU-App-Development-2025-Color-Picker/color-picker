@@ -13,7 +13,11 @@ import javax.microedition.khronos.egl.EGLConfig
 import javax.microedition.khronos.opengles.GL10
 import kotlin.random.Random
 
-class CameraRenderer(val session: Session, var display: Display?) : GLSurfaceView.Renderer {
+class CameraRenderer(
+    private val session: Session,
+    private val display: Display?,
+    private val handleInteraction: (Frame) -> Unit
+) : GLSurfaceView.Renderer {
 
     private var displayWidth = 1
     private var displayHeight = 1

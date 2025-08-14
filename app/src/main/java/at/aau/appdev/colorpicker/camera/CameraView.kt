@@ -57,7 +57,6 @@ import at.aau.appdev.colorpicker.MainActivity
 import at.aau.appdev.colorpicker.R
 import at.aau.appdev.colorpicker.generateColor
 import at.aau.appdev.colorpicker.ui.theme.ColorPickerTheme
-import com.google.ar.core.HitResult
 import kotlinx.coroutines.delay
 import kotlin.random.Random
 
@@ -67,7 +66,7 @@ fun CameraScreen(navController: NavController) {
 
     val session = (LocalActivity.current as MainActivity).session!!
     val display = LocalContext.current.display
-    val renderer = CameraRenderer(session, display)
+    val renderer = CameraRenderer(session, display, ARCoreInteractionHandler.consumeTapsAndProduceAnchors())
     val lifecycleOwner = LocalLifecycleOwner.current
 
     // https://developer.android.com/develop/ui/compose/migrate/interoperability-apis/views-in-compose
@@ -82,23 +81,10 @@ fun CameraScreen(navController: NavController) {
         .fillMaxSize()
         .pointerInput(Unit) {
             detectTapGestures(onTap = { offset ->
-                // TODO: The following code should be extracted into the 'viewModel':
-                // INFO: Currently, ARCore is used for camera and position data. This may change in
-                // INFO: the future. A custom interface should be added to allow for different
-                // INFO: implementations.
                 Log.d(
                     "CameraView.CameraScreen", "Tapped at coordinates ${offset.x}, ${offset.y}."
                 )
-                var hitResults = emptyList<HitResult>()
-                do {
-                    hitResults = renderer.frame.hitTestInstantPlacement(offset.x, offset.x, 3.0f)
-                    Log.d("CameraView.CameraScreen", "Hit test failed.")
-                } while (hitResults.isEmpty())
-                Log.d("CameraView.CameraScreen", "Hit test succeeded.")
-                // TODO: Every anchor should be stored in the 'viewModel' so it can be properly
-                // TODO: disposed of when it is not needed anymore:
-                // INFO: Currently leads to a crash; tracking state needs to be checked beforehand.
-                // anchor = hitResults.get(0).createAnchor()
+                viewModel.registerTap(offset.x, offset.y)
             })
         }, update = { view ->
         val glView = view as GLSurfaceView
