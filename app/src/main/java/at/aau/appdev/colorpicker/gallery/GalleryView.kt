@@ -48,7 +48,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
 import androidx.navigation.compose.rememberNavController
 import at.aau.appdev.colorpicker.R
@@ -62,7 +62,7 @@ fun GalleryScreen(
     navController: NavController,
     navId: String? = null,
 ) {
-    val viewModel: GalleryViewModel = viewModel()
+    val viewModel: GalleryViewModel = hiltViewModel()
 
     Scaffold { padding ->
         Box(modifier = Modifier.fillMaxSize()) {

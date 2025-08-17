@@ -6,12 +6,12 @@ import at.aau.appdev.colorpicker.persistence.entity.ColorEntity
 import at.aau.appdev.colorpicker.persistence.entity.PaletteEntity
 import at.aau.appdev.colorpicker.persistence.repository.Repository
 import dagger.hilt.android.lifecycle.HiltViewModel
-import javax.inject.Inject
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import javax.inject.Inject
 
 
 data class GalleryUiState(

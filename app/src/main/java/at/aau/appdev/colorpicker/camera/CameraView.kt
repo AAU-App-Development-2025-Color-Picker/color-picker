@@ -25,10 +25,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.key
-import androidx.compose.runtime.mutableIntStateOf
-import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.BlurredEdgeTreatment
@@ -47,26 +44,28 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
+import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
-import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import androidx.navigation.compose.rememberNavController
 import at.aau.appdev.colorpicker.MainActivity
 import at.aau.appdev.colorpicker.R
 import at.aau.appdev.colorpicker.generateColor
 import at.aau.appdev.colorpicker.ui.theme.ColorPickerTheme
-import kotlinx.coroutines.delay
-import kotlin.random.Random
 
 @Composable
 fun CameraScreen(navController: NavController) {
-    val viewModel: CameraViewModel = viewModel()
+    val viewModel: CameraViewModel = hiltViewModel()
 
     val session = (LocalActivity.current as MainActivity).session!!
     val display = LocalContext.current.display
-    val renderer = CameraRenderer(session, display, ARCoreInteractionHandler.consumeTapsAndProduceAnchors())
+    val renderer = CameraRenderer(
+        session, display, ARCoreInteractionHandler.somethingThatHappensEachFrame(
+            viewModel::consumeTaps, viewModel::produceAnchors,
+        )
+    )
     val lifecycleOwner = LocalLifecycleOwner.current
 
     // https://developer.android.com/develop/ui/compose/migrate/interoperability-apis/views-in-compose
@@ -114,7 +113,7 @@ fun CameraScreen(navController: NavController) {
         lifecycleOwner.lifecycle.addObserver(observer)
     })
 
-    ColorProbeOverlay(listOf(0, 1, 2, 3, 4))
+    ColorProbeOverlay(emptyList())
     Box(modifier = Modifier.fillMaxSize()) {
         ControlRow(
             modifier = Modifier
@@ -136,29 +135,15 @@ fun CameraScreenPreview() {
 
 @Composable
 fun ColorProbeOverlay(
-    points: List<Int>,
+    points: List<Pair<Float, Float>>,
     modifier: Modifier = Modifier,
 ) {
-    // TODO: This code is just a placeholder and should render actual points from the 'viewModel'!
-    val refreshTrigger = remember { mutableIntStateOf(0) }
-
-    LaunchedEffect(Unit) {
-        while (true) {
-            delay(2000)
-            refreshTrigger.intValue = (refreshTrigger.intValue + 1) % Int.MAX_VALUE
-        }
-    }
-
-    val random = Random(refreshTrigger.intValue)
-    val display = LocalContext.current.display
-
     Box(modifier = modifier.fillMaxSize()) {
         points.forEach { point ->
             key(point) {
                 val color = generateColor()
                 val offset = IntOffset(
-                    (random.nextFloat() * display.width).toInt(),
-                    (random.nextFloat() * display.height).toInt()
+                    (point.first).toInt(), (point.second).toInt()
                 )
 
                 ColorProbe(

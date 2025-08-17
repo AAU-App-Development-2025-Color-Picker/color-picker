@@ -57,7 +57,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
 import androidx.navigation.compose.rememberNavController
 import at.aau.appdev.colorpicker.R
@@ -71,7 +71,7 @@ fun DetailScreen(
     navController: NavController,
     navId: String? = null,
 ) {
-    val viewModel: DetailViewModel = viewModel()
+    val viewModel: DetailViewModel = hiltViewModel()
 
     Scaffold { padding ->
         // https://developer.android.com/develop/ui/compose/animation/shared-elements
