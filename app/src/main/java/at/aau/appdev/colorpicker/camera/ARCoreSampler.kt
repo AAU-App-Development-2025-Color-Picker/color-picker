@@ -2,23 +2,28 @@ package at.aau.appdev.colorpicker.camera
 
 import android.opengl.GLES11Ext
 import android.opengl.GLES30
+import android.opengl.Matrix
+import android.util.Log
+import androidx.compose.ui.graphics.Color
 import at.aau.appdev.colorpicker.camera.OpenGLUtility.checkProgramLinkStatus
 import at.aau.appdev.colorpicker.camera.OpenGLUtility.checkProgramValidateStatus
 import at.aau.appdev.colorpicker.camera.OpenGLUtility.checkShaderCompileStatus
 import at.aau.appdev.colorpicker.camera.OpenGLUtility.floatBufferOf
+import com.google.ar.core.Anchor
+import com.google.ar.core.Frame
 import java.nio.ByteBuffer
 
-object CameraSampler {
+object ARCoreSampler {
 
     private var vertShaderId = 1
     private var fragShaderId = 1
     private var programId = 1
+    private var sampleTextureId = 1
 
     private val vertexArrayIds = IntArray(1)
     private val vertexBufferIds = IntArray(1)
     private val textureBufferIds = IntArray(1)
     private val frameBufferIds = IntArray(1)
-    private var textureId = 1
 
     private val vertexCoordData = floatArrayOf(
         -1f, -1f,
@@ -136,9 +141,9 @@ object CameraSampler {
         // OUTPUT TEXTURE:
         val textureIds = IntArray(1)
         GLES30.glGenTextures(1, textureIds, 0)
-        textureId = textureIds[0]
+        sampleTextureId = textureIds[0]
 
-        GLES30.glBindTexture(GLES30.GL_TEXTURE_2D, textureId)
+        GLES30.glBindTexture(GLES30.GL_TEXTURE_2D, sampleTextureId)
         GLES30.glTexImage2D(
             GLES30.GL_TEXTURE_2D,
             0,
@@ -161,7 +166,11 @@ object CameraSampler {
         GLES30.glGenFramebuffers(1, frameBufferIds, 0)
         GLES30.glBindFramebuffer(GLES30.GL_FRAMEBUFFER, frameBufferIds[0])
         GLES30.glFramebufferTexture2D(
-            GLES30.GL_FRAMEBUFFER, GLES30.GL_COLOR_ATTACHMENT0, GLES30.GL_TEXTURE_2D, textureId, 0
+            GLES30.GL_FRAMEBUFFER,
+            GLES30.GL_COLOR_ATTACHMENT0,
+            GLES30.GL_TEXTURE_2D,
+            sampleTextureId,
+            0
         )
 
         // Unbind:
@@ -169,21 +178,92 @@ object CameraSampler {
         GLES30.glBindTexture(GLES30.GL_TEXTURE_2D, 0)
     }
 
-    fun samplePixel(
-        cameraTextureId: Int, px: Int, py: Int, cameraWidth: Int, cameraHeight: Int
-    ): List<Int> {
+    fun projectPointsAndSampleColors(
+        consumeAnchors: () -> List<Anchor>, producePoints: (List<Point>) -> Unit
+    ): (Frame, Int) -> Unit {
+        return { frame, cameraTextureId ->
+            projectPointsAndSampleColors(frame, cameraTextureId, consumeAnchors, producePoints)
+            Log.d("", "")
+        }
+    }
+
+    fun projectPointsAndSampleColors(
+        frame: Frame,
+        cameraTextureId: Int,
+        consumeAnchors: () -> List<Anchor>,
+        producePoints: (List<Point>) -> Unit
+    ) {
+        val anchors = consumeAnchors()
+        if (anchors.isEmpty()) return
+
+        val coordinates = projectAnchors(frame, anchors)
+        samplePixels(frame, cameraTextureId, coordinates)
+
+        // Somehow we need to merge/zip these two lists.
+        val points = emptyList<Point>()
+
+        producePoints(points)
+    }
+
+    // https://learnopengl.com/getting-started/transformations
+    // https://learnopengl.com/getting-started/coordinate-systems
+    fun projectAnchors(/* display: Display, */ frame: Frame, anchors: List<Anchor>
+    ): List<Pair<Float, Float>> {
+        val projMatrix = FloatArray(16)
+        val viewMatrix = FloatArray(16)
+        val cameraMatrix = FloatArray(16)
+
+        val cameraTextureWidth = frame.camera.textureIntrinsics.imageDimensions[0]
+        val cameraTextureHeight = frame.camera.textureIntrinsics.imageDimensions[1]
+
+        frame.camera.getProjectionMatrix(projMatrix, 0, 0.1f, 100.0f)
+        frame.camera.getViewMatrix(viewMatrix, 0)
+
+        Matrix.multiplyMM(cameraMatrix, 0, projMatrix, 0, viewMatrix, 0)
+
+        val screenPoints = mutableListOf<Pair<Float, Float>>()
+        for (anchor in anchors) {
+            val worldOrigin = floatArrayOf(0f, 0f, 0f, 1f)
+            val worldMatrix = FloatArray(16)
+
+            anchor.pose.toMatrix(worldMatrix, 0)
+
+            val worldCoords = FloatArray(4)
+            Matrix.multiplyMV(worldCoords, 0, worldMatrix, 0, worldOrigin, 0)
+
+            val clipCoords = FloatArray(4)
+            Matrix.multiplyMV(clipCoords, 0, cameraMatrix, 0, worldCoords, 0)
+
+            if (clipCoords[3] <= 0f) {
+                continue
+            }
+            val normalizedX = clipCoords[0] / clipCoords[3]
+            val normalizedY = clipCoords[1] / clipCoords[3]
+
+            // FIXME: Is it conceptually right to use the texture dimensions instead of the display
+            //        dimensions? This depends on whether our overlay takes in ABSOLUTE or RELATIVE
+            //        coordinates at which the color points should be drawn!
+            //        ABSOLUTE -> Use display.
+            //        RELATIVE -> Use texture.
+            val screenX = (normalizedX * 0.5f + 0.5f) * cameraTextureWidth
+            val screenY = (1f - (normalizedY * 0.5f + 0.5f)) * cameraTextureHeight
+
+            screenPoints.add(Pair(screenX, screenY))
+        }
+
+        return screenPoints
+    }
+
+    fun samplePixels(
+        frame: Frame, cameraTextureId: Int, points: List<Pair<Float, Float>>
+    ): List<Color> {
+        val cameraTextureWidth = frame.camera.textureIntrinsics.imageDimensions[0]
+        val cameraTextureHeight = frame.camera.textureIntrinsics.imageDimensions[1]
+
         GLES30.glBindFramebuffer(GLES30.GL_FRAMEBUFFER, frameBufferIds[0])
         GLES30.glViewport(0, 0, 1, 1)
 
         GLES30.glUseProgram(programId)
-
-        val uTextureLocation = GLES30.glGetUniformLocation(programId, "u_Texture")
-        GLES30.glUniform1i(uTextureLocation, 0)
-
-        val uSampleLoc = GLES30.glGetUniformLocation(programId, "u_SampleCoord")
-        val u = px.toFloat() / cameraWidth.toFloat()
-        val v = py.toFloat() / cameraHeight.toFloat()
-        GLES30.glUniform2f(uSampleLoc, u, v)
 
         GLES30.glActiveTexture(GLES30.GL_TEXTURE0)
         GLES30.glBindTexture(GLES11Ext.GL_TEXTURE_EXTERNAL_OES, cameraTextureId)
@@ -192,20 +272,37 @@ object CameraSampler {
 
         GLES30.glDrawArrays(GLES30.GL_TRIANGLE_STRIP, 0, 4)
 
-        val buffer = ByteBuffer.allocateDirect(4)
-        GLES30.glReadPixels(0, 0, 1, 1, GLES30.GL_RGBA, GLES30.GL_UNSIGNED_BYTE, buffer)
+        val uTextureLocation = GLES30.glGetUniformLocation(programId, "u_Texture")
+        GLES30.glUniform1i(uTextureLocation, 0)
+
+        val colors = mutableListOf<Color>()
+
+        for (point in points) {
+            val x = point.first
+            val y = point.second
+
+            val uSampleLocation = GLES30.glGetUniformLocation(programId, "u_SampleCoord")
+            val u = x / cameraTextureWidth.toFloat()
+            val v = y / cameraTextureHeight.toFloat()
+            GLES30.glUniform2f(uSampleLocation, u, v)
+
+            val buffer = ByteBuffer.allocateDirect(4)
+            GLES30.glReadPixels(0, 0, 1, 1, GLES30.GL_RGBA, GLES30.GL_UNSIGNED_BYTE, buffer)
+
+            colors.add(
+                Color(
+                    red = buffer.get(0).toInt(),
+                    green = buffer.get(1).toInt(),
+                    blue = buffer.get(2).toInt(),
+                    alpha = buffer.get(3).toInt()
+                )
+            )
+        }
 
         // Unbind:
         GLES30.glBindFramebuffer(GLES30.GL_FRAMEBUFFER, 0)
 
-        return listOf(
-            // TODO: The 'and' operation here is not immediately obvious.
-            //       I guess it's there to account for signed integer representation?
-            buffer.get(0).toInt() and 0xFF,
-            buffer.get(1).toInt() and 0xFF,
-            buffer.get(2).toInt() and 0xFF,
-            buffer.get(3).toInt() and 0xFF
-        )
+        return colors
     }
 
 }

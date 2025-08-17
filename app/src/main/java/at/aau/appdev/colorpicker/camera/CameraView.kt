@@ -62,9 +62,13 @@ fun CameraScreen(navController: NavController) {
     val session = (LocalActivity.current as MainActivity).session!!
     val display = LocalContext.current.display
     val renderer = CameraRenderer(
-        session, display, ARCoreInteractionHandler.somethingThatHappensEachFrame(
+        session, display,
+        ARCoreInteractionHandler.consumeTapsAndProduceAnchors(
             viewModel::consumeTaps, viewModel::produceAnchors,
-        )
+        ),
+        ARCoreSampler.projectPointsAndSampleColors(
+            viewModel::consumeAnchors, viewModel::producePoints
+        ),
     )
     val lifecycleOwner = LocalLifecycleOwner.current
 

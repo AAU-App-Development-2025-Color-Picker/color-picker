@@ -5,7 +5,6 @@ import android.opengl.GLES30
 import android.opengl.GLSurfaceView
 import android.util.Log
 import android.view.Display
-import at.aau.appdev.colorpicker.camera.ARCoreInteractionHandler.projectAnchorToScreen
 import at.aau.appdev.colorpicker.camera.OpenGLUtility.checkProgramLinkStatus
 import at.aau.appdev.colorpicker.camera.OpenGLUtility.checkProgramValidateStatus
 import at.aau.appdev.colorpicker.camera.OpenGLUtility.checkShaderCompileStatus
@@ -21,16 +20,18 @@ import kotlin.random.Random
 class CameraRenderer(
     private val session: Session,
     private val display: Display?,
-    private val handleInteraction: (Frame) -> Unit
+    private val handleInteraction: (Frame) -> Unit,
+    private val updatePreview: (Frame, Int) -> Unit,
 ) : GLSurfaceView.Renderer {
 
     private var displayWidth = 1
     private var displayHeight = 1
 
-    private var textureId = 1
     private var vertShaderId = 1
     private var fragShaderId = 1
     private var programId = 1
+    private var cameraTextureId = 1
+
     private val vertexArrayIds = IntArray(1)
     private val vertexBufferIds = IntArray(1)
     private val textureBufferIds = IntArray(1)
@@ -149,9 +150,9 @@ class CameraRenderer(
         fun generateTextures() {
             val textureIds = IntArray(1)
             GLES30.glGenTextures(1, textureIds, 0)
-            textureId = textureIds[0]
+            cameraTextureId = textureIds[0]
 
-            session.setCameraTextureName(textureId)
+            session.setCameraTextureName(cameraTextureId)
         }
 
         // Renderer setup:
@@ -161,8 +162,8 @@ class CameraRenderer(
         generateAttributes()
         generateTextures()
 
-        // TODO: Sampler setup:
-        // CameraSampler.init()
+        // Sampler setup:
+        ARCoreSampler.onSurfaceCreated()
     }
 
     override fun onSurfaceChanged(
@@ -178,13 +179,6 @@ class CameraRenderer(
             this.frame = session.update()
 
             handleInteraction(frame)
-            // FIXME: This loop is here is just for sampling whether anchors are properly tracked!
-            for (anchor in session.allAnchors) {
-                Log.d(
-                    "CameraRenderer.onDrawFrame",
-                    projectAnchorToScreen(frame, anchor).toString(),
-                )
-            }
 
             frame.transformCoordinates2d(
                 Coordinates2d.OPENGL_NORMALIZED_DEVICE_COORDINATES,
@@ -202,7 +196,7 @@ class CameraRenderer(
             GLES30.glUniform1i(uTextureLocation, 0)
 
             GLES30.glActiveTexture(GLES30.GL_TEXTURE0)
-            GLES30.glBindTexture(GLES11Ext.GL_TEXTURE_EXTERNAL_OES, textureId)
+            GLES30.glBindTexture(GLES11Ext.GL_TEXTURE_EXTERNAL_OES, cameraTextureId)
 
             GLES30.glBindVertexArray(vertexArrayIds[0])
 
@@ -211,6 +205,8 @@ class CameraRenderer(
             // Unbind:
             GLES30.glBindVertexArray(0)
             GLES30.glBindTexture(GLES11Ext.GL_TEXTURE_EXTERNAL_OES, 0)
+
+            updatePreview(frame, cameraTextureId)
         } catch (e: CameraNotAvailableException) {
             Log.e(
                 "GLSurfaceView.Renderer.onDrawFrame", "Camera not available during onDrawFrame", e
@@ -220,7 +216,7 @@ class CameraRenderer(
 
     private fun setDisplayGeometry() {
         if (display == null || this.displayWidth == 0 || this.displayHeight == 0) return
-        val displayRotation = this.display!!.rotation
+        val displayRotation = this.display.rotation
         session.setDisplayGeometry(
             displayRotation, this.displayWidth, this.displayHeight
         )
