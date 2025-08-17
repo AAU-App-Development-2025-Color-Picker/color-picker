@@ -1,6 +1,5 @@
 package at.aau.appdev.colorpicker.camera
 
-import android.util.Log
 import com.google.ar.core.Anchor
 import com.google.ar.core.Frame
 import com.google.ar.core.TrackingState
@@ -14,7 +13,6 @@ object ARCoreInteractionHandler {
     ): (Frame) -> Unit {
         return { frame ->
             consumeTapsAndProduceAnchors(frame, consumeTaps, produceAnchors)
-            Log.d("", "")
         }
     }
 
