@@ -5,6 +5,11 @@ import android.opengl.GLES30
 import android.opengl.GLSurfaceView
 import android.util.Log
 import android.view.Display
+import at.aau.appdev.colorpicker.camera.ARCoreInteractionHandler.projectAnchorToScreen
+import at.aau.appdev.colorpicker.camera.OpenGLUtility.checkProgramLinkStatus
+import at.aau.appdev.colorpicker.camera.OpenGLUtility.checkProgramValidateStatus
+import at.aau.appdev.colorpicker.camera.OpenGLUtility.checkShaderCompileStatus
+import at.aau.appdev.colorpicker.camera.OpenGLUtility.floatBufferOf
 import com.google.ar.core.Coordinates2d
 import com.google.ar.core.Frame
 import com.google.ar.core.Session
@@ -26,9 +31,9 @@ class CameraRenderer(
     private var vertShaderId = 1
     private var fragShaderId = 1
     private var programId = 1
-    private var vertexArrayIds = IntArray(1)
-    private var vertexBufferIds = IntArray(1)
-    private var textureBufferIds = IntArray(1)
+    private val vertexArrayIds = IntArray(1)
+    private val vertexBufferIds = IntArray(1)
+    private val textureBufferIds = IntArray(1)
 
     private val vertexCoordData = floatArrayOf(
         -1f, -1f,
@@ -149,11 +154,15 @@ class CameraRenderer(
             session.setCameraTextureName(textureId)
         }
 
+        // Renderer setup:
         compileShaders()
         linkProgram()
         generateBuffers()
         generateAttributes()
         generateTextures()
+
+        // TODO: Sampler setup:
+        // CameraSampler.init()
     }
 
     override fun onSurfaceChanged(
@@ -168,6 +177,15 @@ class CameraRenderer(
         try {
             this.frame = session.update()
 
+            handleInteraction(frame)
+            // FIXME: This loop is here is just for sampling whether anchors are properly tracked!
+            for (anchor in session.allAnchors) {
+                Log.d(
+                    "CameraRenderer.onDrawFrame",
+                    projectAnchorToScreen(frame, anchor).toString(),
+                )
+            }
+
             frame.transformCoordinates2d(
                 Coordinates2d.OPENGL_NORMALIZED_DEVICE_COORDINATES,
                 vertexCoordData,
@@ -180,11 +198,11 @@ class CameraRenderer(
 
             GLES30.glUseProgram(programId)
 
-            GLES30.glActiveTexture(GLES30.GL_TEXTURE0)
-            GLES30.glBindTexture(GLES11Ext.GL_TEXTURE_EXTERNAL_OES, textureId)
-            GLES30.glUseProgram(programId)
             val uTextureLocation = GLES30.glGetUniformLocation(programId, "u_Texture")
             GLES30.glUniform1i(uTextureLocation, 0)
+
+            GLES30.glActiveTexture(GLES30.GL_TEXTURE0)
+            GLES30.glBindTexture(GLES11Ext.GL_TEXTURE_EXTERNAL_OES, textureId)
 
             GLES30.glBindVertexArray(vertexArrayIds[0])
 
@@ -197,43 +215,6 @@ class CameraRenderer(
             Log.e(
                 "GLSurfaceView.Renderer.onDrawFrame", "Camera not available during onDrawFrame", e
             )
-        }
-    }
-
-    private fun floatBufferOf(vararg floats: Float): java.nio.FloatBuffer {
-        return java.nio.ByteBuffer.allocateDirect(floats.size * Float.SIZE_BYTES)
-            .order(java.nio.ByteOrder.nativeOrder()).asFloatBuffer().apply {
-                put(floats)
-                position(0)
-            }
-    }
-
-    private fun checkShaderCompileStatus(shaderId: Int, shaderType: String) {
-        val compileStatus = IntArray(1)
-        GLES30.glGetShaderiv(shaderId, GLES30.GL_COMPILE_STATUS, compileStatus, 0)
-        if (compileStatus[0] == GLES30.GL_FALSE) {
-            val log = GLES30.glGetShaderInfoLog(shaderId)
-            throw RuntimeException("GLSL Shader compilation failed:\n[$shaderId - $shaderType] $log")
-        }
-    }
-
-    private fun checkProgramLinkStatus(programId: Int) {
-        val linkStatus = IntArray(1)
-        GLES30.glGetProgramiv(programId, GLES30.GL_LINK_STATUS, linkStatus, 0)
-        if (linkStatus[0] == GLES30.GL_FALSE) {
-            val log = GLES30.glGetProgramInfoLog(programId)
-            throw RuntimeException("GLSL Program linking failed:\n[$programId] $log")
-        }
-    }
-
-    private fun checkProgramValidateStatus(programId: Int) {
-        GLES30.glValidateProgram(programId)
-
-        val validateStatus = IntArray(1)
-        GLES30.glGetProgramiv(programId, GLES30.GL_VALIDATE_STATUS, validateStatus, 0)
-        if (validateStatus[0] == GLES30.GL_FALSE) {
-            val log = GLES30.glGetProgramInfoLog(programId)
-            throw RuntimeException("GLSL Program validation failed:\n[$programId] $log")
         }
     }
 
