@@ -58,6 +58,7 @@ import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavController
 import androidx.navigation.compose.rememberNavController
 import at.aau.appdev.colorpicker.R
@@ -70,8 +71,9 @@ import kotlinx.coroutines.launch
 fun DetailScreen(
     navController: NavController,
     navId: String? = null,
+    viewModel: DetailViewModel = hiltViewModel()
 ) {
-    val viewModel: DetailViewModel = hiltViewModel()
+    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
 
     Scaffold { padding ->
         // https://developer.android.com/develop/ui/compose/animation/shared-elements

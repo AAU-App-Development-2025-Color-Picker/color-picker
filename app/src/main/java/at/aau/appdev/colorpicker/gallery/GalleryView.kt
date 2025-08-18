@@ -49,6 +49,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavController
 import androidx.navigation.compose.rememberNavController
 import at.aau.appdev.colorpicker.R
@@ -61,8 +62,9 @@ import kotlin.random.Random
 fun GalleryScreen(
     navController: NavController,
     navId: String? = null,
+    viewModel: GalleryViewModel = hiltViewModel()
 ) {
-    val viewModel: GalleryViewModel = hiltViewModel()
+    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
 
     Scaffold { padding ->
         Box(modifier = Modifier.fillMaxSize()) {
