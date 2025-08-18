@@ -25,6 +25,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -48,17 +49,15 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavController
 import androidx.navigation.compose.rememberNavController
 import at.aau.appdev.colorpicker.MainActivity
 import at.aau.appdev.colorpicker.R
-import at.aau.appdev.colorpicker.generateColor
 import at.aau.appdev.colorpicker.ui.theme.ColorPickerTheme
 
 @Composable
-fun CameraScreen(navController: NavController) {
-    val viewModel: CameraViewModel = hiltViewModel()
-
+fun CameraScreen(navController: NavController, viewModel: CameraViewModel = hiltViewModel()) {
     val session = (LocalActivity.current as MainActivity).session!!
     val display = LocalContext.current.display
     val renderer = CameraRenderer(
@@ -117,7 +116,9 @@ fun CameraScreen(navController: NavController) {
         lifecycleOwner.lifecycle.addObserver(observer)
     })
 
-    ColorProbeOverlay(emptyList())
+    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+
+    ColorProbeOverlay(uiState.points)
     Box(modifier = Modifier.fillMaxSize()) {
         ControlRow(
             modifier = Modifier
@@ -139,15 +140,16 @@ fun CameraScreenPreview() {
 
 @Composable
 fun ColorProbeOverlay(
-    points: List<Pair<Float, Float>>,
+    points: List<Point>,
     modifier: Modifier = Modifier,
 ) {
     Box(modifier = modifier.fillMaxSize()) {
         points.forEach { point ->
             key(point) {
-                val color = generateColor()
+                val color = point.color
                 val offset = IntOffset(
-                    (point.first).toInt(), (point.second).toInt()
+                    (point.position.first).toInt(),
+                    (point.position.second).toInt(),
                 )
 
                 ColorProbe(
