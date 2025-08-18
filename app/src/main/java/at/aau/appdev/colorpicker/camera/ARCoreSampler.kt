@@ -4,9 +4,10 @@ import android.opengl.GLES11Ext
 import android.opengl.GLES30
 import android.opengl.Matrix
 import androidx.compose.ui.graphics.Color
-import at.aau.appdev.colorpicker.camera.OpenGLUtility.compileShaders
-import at.aau.appdev.colorpicker.camera.OpenGLUtility.generateAttributes
-import at.aau.appdev.colorpicker.camera.OpenGLUtility.generateBuffers
+import at.aau.appdev.colorpicker.camera.OpenGLUtility.compileShader
+import at.aau.appdev.colorpicker.camera.OpenGLUtility.generateArray
+import at.aau.appdev.colorpicker.camera.OpenGLUtility.generateAttribute
+import at.aau.appdev.colorpicker.camera.OpenGLUtility.generateBuffer
 import at.aau.appdev.colorpicker.camera.OpenGLUtility.linkProgram
 import com.google.ar.core.Anchor
 import com.google.ar.core.Frame
@@ -42,7 +43,6 @@ object ARCoreSampler {
         
         void main() {
             gl_Position = a_Position;
-            v_TexCoord = a_TexCoord;
         }
     """.trimIndent()
     private val fragShader = """
@@ -53,8 +53,6 @@ object ARCoreSampler {
         uniform samplerExternalOES u_Texture;
         uniform vec2 u_SampleCoord;
         
-        in vec2 v_TexCoord;
-        
         out vec4 outColor;
         
         void main() {
@@ -64,15 +62,20 @@ object ARCoreSampler {
 
 
     fun onSurfaceCreated() {
-        val (vertShaderId, fragShaderId) = compileShaders(vertShader, fragShader)
+        val vertShaderId = compileShader(vertShader, GLES30.GL_VERTEX_SHADER)
+        val fragShaderId = compileShader(fragShader, GLES30.GL_FRAGMENT_SHADER)
         this.programId = linkProgram(vertShaderId, fragShaderId)
-        val (vertexBufferId, textureBufferId) = generateBuffers(vertexCoordData, textureCoordData)
-        this.vertexArrayId = generateAttributes(programId, vertexBufferId, textureBufferId)
-        this.sampleTextureId = generateTextures()
+
+        this.vertexArrayId = generateArray()
+        val vertexBufferId = generateBuffer(vertexCoordData)
+        generateAttribute(programId, vertexBufferId, "a_Position")
+
+        this.sampleTextureId = generateSampleTexture()
+
         this.frameBufferId = generateFrameBuffer()
     }
 
-    private fun generateTextures(): Int {
+    private fun generateSampleTexture(): Int {
         val textureIds = IntArray(1)
         GLES30.glGenTextures(1, textureIds, 0)
         val sampleTextureId = textureIds[0]
@@ -95,7 +98,7 @@ object ARCoreSampler {
             GLES30.GL_TEXTURE_2D, GLES30.GL_TEXTURE_MAG_FILTER, GLES30.GL_NEAREST
         )
 
-        return ARCoreSampler.sampleTextureId
+        return sampleTextureId
     }
 
     private fun generateFrameBuffer(): Int {
@@ -111,7 +114,7 @@ object ARCoreSampler {
             0
         )
 
-        return ARCoreSampler.frameBufferId
+        return frameBufferId
     }
 
     fun projectPointsAndSampleColors(
@@ -131,6 +134,22 @@ object ARCoreSampler {
         val anchors = consumeAnchors()
         if (anchors.isEmpty()) return
 
+        // FIXME: Careful here!
+        //        It is possible to provoke an exception by tapping in the 'CameraView' really fast.
+        /*
+            FATAL EXCEPTION: GLThread 70 (Ask Gemini)
+            Process: at.aau.appdev.colorpicker, PID: 12997
+            java.util.ConcurrentModificationException
+                at java.util.ArrayList$Itr.next(ArrayList.java:860)
+                at at.aau.appdev.colorpicker.camera.ARCoreSampler.projectAnchors(ARCoreSampler.kt:163)
+                at at.aau.appdev.colorpicker.camera.ARCoreSampler.projectPointsAndSampleColors(ARCoreSampler.kt:137)
+                at at.aau.appdev.colorpicker.camera.ARCoreSampler.projectPointsAndSampleColors$lambda$0(ARCoreSampler.kt:124)
+                at at.aau.appdev.colorpicker.camera.ARCoreSampler.$r8$lambda$AhtYGBn2DKIeDBlv4AawdRgy6Qc(Unknown Source:0)
+                at at.aau.appdev.colorpicker.camera.ARCoreSampler$$ExternalSyntheticLambda0.invoke(D8$$SyntheticClass:0)
+                at at.aau.appdev.colorpicker.camera.CameraRenderer.onDrawFrame(CameraRenderer.kt:137)
+                at android.opengl.GLSurfaceView$GLThread.guardedRun(GLSurfaceView.java:1573)
+                at android.opengl.GLSurfaceView$GLThread.run(GLSurfaceView.java:1272)
+         */
         val coordinates = projectAnchors(frame, anchors)
         samplePixels(frame, cameraTextureId, coordinates)
 

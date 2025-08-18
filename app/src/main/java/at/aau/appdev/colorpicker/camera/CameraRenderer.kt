@@ -5,9 +5,10 @@ import android.opengl.GLES30
 import android.opengl.GLSurfaceView
 import android.util.Log
 import android.view.Display
-import at.aau.appdev.colorpicker.camera.OpenGLUtility.compileShaders
-import at.aau.appdev.colorpicker.camera.OpenGLUtility.generateAttributes
-import at.aau.appdev.colorpicker.camera.OpenGLUtility.generateBuffers
+import at.aau.appdev.colorpicker.camera.OpenGLUtility.compileShader
+import at.aau.appdev.colorpicker.camera.OpenGLUtility.generateArray
+import at.aau.appdev.colorpicker.camera.OpenGLUtility.generateAttribute
+import at.aau.appdev.colorpicker.camera.OpenGLUtility.generateBuffer
 import at.aau.appdev.colorpicker.camera.OpenGLUtility.linkProgram
 import com.google.ar.core.Coordinates2d
 import com.google.ar.core.Frame
@@ -79,15 +80,19 @@ class CameraRenderer(
     override fun onSurfaceCreated(
         gl: GL10?, config: EGLConfig?
     ) {
-        // Renderer setup:
-        val (vertShaderId, fragShaderId) = compileShaders(vertShader, fragShader)
+        val vertShaderId = compileShader(vertShader, GLES30.GL_VERTEX_SHADER)
+        val fragShaderId = compileShader(fragShader, GLES30.GL_FRAGMENT_SHADER)
         this.programId = linkProgram(vertShaderId, fragShaderId)
-        val (vertexBufferId, textureBufferId) = generateBuffers(vertexCoordData, textureCoordData)
-        this.vertexArrayId = generateAttributes(programId, vertexBufferId, textureBufferId)
-        this.cameraTextureId = generateTextures()
+
+        this.vertexArrayId = generateArray()
+        val vertexBufferId = generateBuffer(vertexCoordData)
+        generateAttribute(programId, vertexBufferId, "a_Position")
+        val textureBufferId = generateBuffer(textureCoordData)
+        generateAttribute(programId, textureBufferId, "a_TexCoord")
+
+        this.cameraTextureId = generateCameraTexture()
         session.setCameraTextureName(cameraTextureId)
 
-        // Sampler setup:
         ARCoreSampler.onSurfaceCreated()
     }
 
@@ -112,6 +117,9 @@ class CameraRenderer(
                 textureCoordData
             )
 
+            GLES30.glBindFramebuffer(GLES30.GL_FRAMEBUFFER, 0)
+            GLES30.glViewport(0, 0, displayWidth, displayHeight)
+
             GLES30.glClearColor(Random.nextFloat(), Random.nextFloat(), Random.nextFloat(), 1f)
             GLES30.glClear(GLES30.GL_COLOR_BUFFER_BIT or GLES30.GL_DEPTH_BUFFER_BIT)
 
@@ -135,7 +143,7 @@ class CameraRenderer(
         }
     }
 
-    private fun generateTextures(): Int {
+    private fun generateCameraTexture(): Int {
         val textureIds = IntArray(1)
         GLES30.glGenTextures(1, textureIds, 0)
         val cameraTextureId = textureIds[0]
