@@ -6,6 +6,7 @@ import android.opengl.GLSurfaceView
 import android.util.Log
 import android.view.Display
 import at.aau.appdev.colorpicker.camera.OpenGLUtility.compileShader
+import at.aau.appdev.colorpicker.camera.OpenGLUtility.floatBufferOf
 import at.aau.appdev.colorpicker.camera.OpenGLUtility.generateArray
 import at.aau.appdev.colorpicker.camera.OpenGLUtility.generateAttribute
 import at.aau.appdev.colorpicker.camera.OpenGLUtility.generateBuffer
@@ -31,6 +32,7 @@ class CameraRenderer(
     private var programId = -1
     private var cameraTextureId = -1
     private var vertexArrayId = -1
+    private var textureBufferId = -1
 
     private val vertexCoordData = floatArrayOf(
         -1f, -1f,
@@ -87,7 +89,7 @@ class CameraRenderer(
         this.vertexArrayId = generateArray()
         val vertexBufferId = generateBuffer(vertexCoordData)
         generateAttribute(programId, vertexBufferId, "a_Position")
-        val textureBufferId = generateBuffer(textureCoordData)
+        this.textureBufferId = generateBuffer(textureCoordData)
         generateAttribute(programId, textureBufferId, "a_TexCoord")
 
         this.cameraTextureId = generateCameraTexture()
@@ -99,6 +101,7 @@ class CameraRenderer(
     override fun onSurfaceChanged(
         gl: GL10?, width: Int, height: Int
     ) {
+        Log.d("CameraRenderer.onSurfaceChanged", "width: $width, height: $height")
         this.displayWidth = width
         this.displayHeight = height
         setDisplayGeometry()
@@ -115,6 +118,13 @@ class CameraRenderer(
                 vertexCoordData,
                 Coordinates2d.TEXTURE_NORMALIZED,
                 textureCoordData
+            )
+            GLES30.glBindBuffer(GLES30.GL_ARRAY_BUFFER, textureBufferId)
+            GLES30.glBufferSubData(
+                GLES30.GL_ARRAY_BUFFER,
+                0,
+                textureCoordData.size * Float.SIZE_BYTES,
+                floatBufferOf(*textureCoordData),
             )
 
             GLES30.glBindFramebuffer(GLES30.GL_FRAMEBUFFER, 0)
