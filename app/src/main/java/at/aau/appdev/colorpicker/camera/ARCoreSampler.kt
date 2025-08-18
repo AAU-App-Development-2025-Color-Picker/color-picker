@@ -151,10 +151,7 @@ object ARCoreSampler {
                 at android.opengl.GLSurfaceView$GLThread.run(GLSurfaceView.java:1272)
          */
         val coordinates = projectAnchors(frame, anchors)
-        samplePixels(frame, cameraTextureId, coordinates)
-
-        // TODO: Somehow we need to merge/zip these two lists.
-        val points = emptyList<Point>()
+        val points = samplePixels(frame, cameraTextureId, coordinates)
 
         producePoints(points)
     }
@@ -208,9 +205,11 @@ object ARCoreSampler {
         return screenPoints
     }
 
+    // FIXME: It's rather ugly that the function called 'samplePixels' returns full-on points.
+    //        Originally, it returned colors - but that wasn't too useful either. Rethink!
     fun samplePixels(
         frame: Frame, cameraTextureId: Int, points: List<Pair<Float, Float>>
-    ): List<Color> {
+    ): List<Point> {
         val cameraTextureWidth = frame.camera.textureIntrinsics.imageDimensions[0]
         val cameraTextureHeight = frame.camera.textureIntrinsics.imageDimensions[1]
 
@@ -219,6 +218,9 @@ object ARCoreSampler {
 
         GLES30.glUseProgram(programId)
 
+        val uTextureLocation = GLES30.glGetUniformLocation(programId, "u_Texture")
+        GLES30.glUniform1i(uTextureLocation, 0)
+
         GLES30.glActiveTexture(GLES30.GL_TEXTURE0)
         GLES30.glBindTexture(GLES11Ext.GL_TEXTURE_EXTERNAL_OES, cameraTextureId)
 
@@ -226,10 +228,7 @@ object ARCoreSampler {
 
         GLES30.glDrawArrays(GLES30.GL_TRIANGLE_STRIP, 0, 4)
 
-        val uTextureLocation = GLES30.glGetUniformLocation(programId, "u_Texture")
-        GLES30.glUniform1i(uTextureLocation, 0)
-
-        val colors = mutableListOf<Color>()
+        val screenPoints = mutableListOf<Point>()
 
         for (point in points) {
             val x = point.first
@@ -243,17 +242,19 @@ object ARCoreSampler {
             val buffer = ByteBuffer.allocateDirect(4)
             GLES30.glReadPixels(0, 0, 1, 1, GLES30.GL_RGBA, GLES30.GL_UNSIGNED_BYTE, buffer)
 
-            colors.add(
-                Color(
-                    red = buffer.get(0).toInt(),
-                    green = buffer.get(1).toInt(),
-                    blue = buffer.get(2).toInt(),
-                    alpha = buffer.get(3).toInt()
+            screenPoints.add(
+                Point(
+                    Color(
+                        red = buffer.get(0).toInt(),
+                        green = buffer.get(1).toInt(),
+                        blue = buffer.get(2).toInt(),
+                        alpha = buffer.get(3).toInt()
+                    ), Pair(x, y)
                 )
             )
         }
 
-        return colors
+        return screenPoints
     }
 
 }
