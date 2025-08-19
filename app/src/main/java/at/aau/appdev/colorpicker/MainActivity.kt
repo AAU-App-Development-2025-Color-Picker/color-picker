@@ -29,7 +29,7 @@ import dagger.hilt.android.AndroidEntryPoint
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
 
-    internal var session: Session? = null
+    internal lateinit var session: Session
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -71,17 +71,17 @@ class MainActivity : ComponentActivity() {
 
     override fun onDestroy() {
         super.onDestroy()
-        session?.close()
+        session.close()
     }
 
     override fun onPause() {
         super.onPause()
-        session?.pause()
+        session.pause()
     }
 
     override fun onResume() {
         super.onResume()
-        session?.resume()
+        session.resume()
     }
 }
 

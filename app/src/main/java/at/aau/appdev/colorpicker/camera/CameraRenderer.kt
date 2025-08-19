@@ -21,7 +21,7 @@ import kotlin.random.Random
 
 class CameraRenderer(
     private val session: Session,
-    private val display: Display?,
+    private val display: Display,
     private val handleInteraction: (Frame) -> Unit,
     private val updatePreview: (Frame, Int) -> Unit,
 ) : GLSurfaceView.Renderer {
@@ -162,10 +162,11 @@ class CameraRenderer(
     }
 
     private fun setDisplayGeometry() {
-        if (display == null || this.displayWidth == 0 || this.displayHeight == 0) return
-        val displayRotation = this.display.rotation
+        if (this.displayWidth == 0 || this.displayHeight == 0) return
         session.setDisplayGeometry(
-            displayRotation, this.displayWidth, this.displayHeight
+            this.display.rotation,
+            this.displayWidth,
+            this.displayHeight,
         )
     }
 
