@@ -8,7 +8,7 @@ import com.google.ar.core.exceptions.NotTrackingException
 object ARCoreInteractionHandler {
 
     fun consumeTapsAndProduceAnchors(
-        consumeTaps: () -> List<Pair<Float, Float>>,
+        consumeTaps: () -> List<Coordinate>,
         produceAnchors: (List<Anchor>) -> Unit,
     ): (Frame) -> Unit {
         return { frame ->
@@ -18,7 +18,7 @@ object ARCoreInteractionHandler {
 
     fun consumeTapsAndProduceAnchors(
         frame: Frame,
-        consumeTaps: () -> List<Pair<Float, Float>>,
+        consumeTaps: () -> List<Coordinate>,
         produceAnchors: (List<Anchor>) -> Unit,
     ) {
         val taps = consumeTaps()
@@ -27,7 +27,7 @@ object ARCoreInteractionHandler {
         val anchors = mutableListOf<Anchor>()
 
         for ((x, y) in taps) {
-            val hits = frame.hitTestInstantPlacement(x, y, 3.0f)
+            val hits = frame.hitTestInstantPlacement(x, y, 2.0f)
             if (hits.isNotEmpty()) {
                 val hit = hits.first()
                 if (hit.trackable.trackingState == TrackingState.TRACKING) {

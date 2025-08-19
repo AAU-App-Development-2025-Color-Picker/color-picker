@@ -10,6 +10,7 @@ import at.aau.appdev.colorpicker.camera.OpenGLUtility.generateAttribute
 import at.aau.appdev.colorpicker.camera.OpenGLUtility.generateBuffer
 import at.aau.appdev.colorpicker.camera.OpenGLUtility.linkProgram
 import com.google.ar.core.Anchor
+import com.google.ar.core.Coordinates2d
 import com.google.ar.core.Frame
 import java.nio.ByteBuffer
 
@@ -118,7 +119,7 @@ object ARCoreSampler {
     }
 
     fun projectPointsAndSampleColors(
-        consumeAnchors: () -> List<Anchor>, producePoints: (List<Point>) -> Unit
+        consumeAnchors: () -> List<Pair<Long, Anchor>>, producePoints: (List<Probe>) -> Unit
     ): (Frame, Int) -> Unit {
         return { frame, cameraTextureId ->
             projectPointsAndSampleColors(frame, cameraTextureId, consumeAnchors, producePoints)
@@ -128,8 +129,8 @@ object ARCoreSampler {
     fun projectPointsAndSampleColors(
         frame: Frame,
         cameraTextureId: Int,
-        consumeAnchors: () -> List<Anchor>,
-        producePoints: (List<Point>) -> Unit
+        consumeAnchors: () -> List<Pair<Long, Anchor>>,
+        produceProbes: (List<Probe>) -> Unit
     ) {
         val anchors = consumeAnchors()
         if (anchors.isEmpty()) return
@@ -151,29 +152,27 @@ object ARCoreSampler {
                 at android.opengl.GLSurfaceView$GLThread.run(GLSurfaceView.java:1272)
          */
         val coordinates = projectAnchors(frame, anchors)
-        val points = samplePixels(frame, cameraTextureId, coordinates)
+        val probes = samplePixels(frame, cameraTextureId, coordinates)
 
-        producePoints(points)
+        produceProbes(probes)
     }
 
     // https://learnopengl.com/getting-started/transformations
     // https://learnopengl.com/getting-started/coordinate-systems
-    fun projectAnchors(/* display: Display, */ frame: Frame, anchors: List<Anchor>
-    ): List<Pair<Float, Float>> {
+    fun projectAnchors(
+        frame: Frame, anchors: List<Pair<Long, Anchor>>
+    ): List<Pair<Long, Coordinate>> {
         val projMatrix = FloatArray(16)
         val viewMatrix = FloatArray(16)
         val cameraMatrix = FloatArray(16)
-
-        val cameraTextureWidth = frame.camera.textureIntrinsics.imageDimensions[0]
-        val cameraTextureHeight = frame.camera.textureIntrinsics.imageDimensions[1]
 
         frame.camera.getProjectionMatrix(projMatrix, 0, 0.1f, 100.0f)
         frame.camera.getViewMatrix(viewMatrix, 0)
 
         Matrix.multiplyMM(cameraMatrix, 0, projMatrix, 0, viewMatrix, 0)
 
-        val screenPoints = mutableListOf<Pair<Float, Float>>()
-        for (anchor in anchors) {
+        val coordinates = mutableListOf<Pair<Long, Coordinate>>()
+        for ((anchorId, anchor) in anchors) {
             val worldOrigin = floatArrayOf(0f, 0f, 0f, 1f)
             val worldMatrix = FloatArray(16)
 
@@ -188,31 +187,34 @@ object ARCoreSampler {
             if (clipCoords[3] <= 0f) {
                 continue
             }
-            val normalizedX = clipCoords[0] / clipCoords[3]
-            val normalizedY = clipCoords[1] / clipCoords[3]
 
-            // FIXME: Is it conceptually right to use the texture dimensions instead of the display
-            //        dimensions? This depends on whether our overlay takes in ABSOLUTE or RELATIVE
-            //        coordinates at which the color points should be drawn!
-            //        ABSOLUTE -> Use display.
-            //        RELATIVE -> Use texture.
-            val screenX = (normalizedX * 0.5f + 0.5f) * cameraTextureWidth
-            val screenY = (1f - (normalizedY * 0.5f + 0.5f)) * cameraTextureHeight
+            val normCoords = floatArrayOf(
+                clipCoords[0] / clipCoords[3],
+                clipCoords[1] / clipCoords[3],
+            )
 
-            screenPoints.add(Pair(screenX, screenY))
+            val screenCoords = FloatArray(2)
+            frame.transformCoordinates2d(
+                Coordinates2d.OPENGL_NORMALIZED_DEVICE_COORDINATES,
+                normCoords,
+                Coordinates2d.VIEW,
+                screenCoords,
+            )
+
+            coordinates.add(
+                Pair(
+                    anchorId,
+                    Coordinate(screenCoords),
+                )
+            )
         }
 
-        return screenPoints
+        return coordinates
     }
 
-    // FIXME: It's rather ugly that the function called 'samplePixels' returns full-on points.
-    //        Originally, it returned colors - but that wasn't too useful either. Rethink!
     fun samplePixels(
-        frame: Frame, cameraTextureId: Int, points: List<Pair<Float, Float>>
-    ): List<Point> {
-        val cameraTextureWidth = frame.camera.textureIntrinsics.imageDimensions[0]
-        val cameraTextureHeight = frame.camera.textureIntrinsics.imageDimensions[1]
-
+        frame: Frame, cameraTextureId: Int, coordinates: List<Pair<Long, Coordinate>>
+    ): List<Probe> {
         GLES30.glBindFramebuffer(GLES30.GL_FRAMEBUFFER, frameBufferId)
         GLES30.glViewport(0, 0, 1, 1)
 
@@ -220,41 +222,57 @@ object ARCoreSampler {
 
         val uTextureLocation = GLES30.glGetUniformLocation(programId, "u_Texture")
         GLES30.glUniform1i(uTextureLocation, 0)
+        val uSampleLocation = GLES30.glGetUniformLocation(programId, "u_SampleCoord")
 
         GLES30.glActiveTexture(GLES30.GL_TEXTURE0)
         GLES30.glBindTexture(GLES11Ext.GL_TEXTURE_EXTERNAL_OES, cameraTextureId)
 
         GLES30.glBindVertexArray(vertexArrayId)
 
-        GLES30.glDrawArrays(GLES30.GL_TRIANGLE_STRIP, 0, 4)
+        val screenCoords = FloatArray(coordinates.size * 2)
+        coordinates.forEachIndexed { index, (id, coordinate) ->
+            screenCoords[index * 2] = coordinate.x
+            screenCoords[index * 2 + 1] = coordinate.y
+        }
 
-        val screenPoints = mutableListOf<Point>()
+        val textureCoords = FloatArray(coordinates.size * 2)
+        frame.transformCoordinates2d(
+            Coordinates2d.VIEW,
+            screenCoords,
+            Coordinates2d.TEXTURE_NORMALIZED,
+            textureCoords,
+        )
 
-        for (point in points) {
-            val x = point.first
-            val y = point.second
+        val probes = mutableListOf<Probe>()
 
-            val uSampleLocation = GLES30.glGetUniformLocation(programId, "u_SampleCoord")
-            val u = x / cameraTextureWidth.toFloat()
-            val v = y / cameraTextureHeight.toFloat()
+        for (index in coordinates.indices) {
+            val x = screenCoords[index * 2]
+            val y = screenCoords[index * 2 + 1]
+            val u = textureCoords[index * 2]
+            val v = textureCoords[index * 2 + 1]
+
             GLES30.glUniform2f(uSampleLocation, u, v)
+
+            GLES30.glDrawArrays(GLES30.GL_TRIANGLE_STRIP, 0, 4)
 
             val buffer = ByteBuffer.allocateDirect(4)
             GLES30.glReadPixels(0, 0, 1, 1, GLES30.GL_RGBA, GLES30.GL_UNSIGNED_BYTE, buffer)
 
-            screenPoints.add(
-                Point(
+            probes.add(
+                Probe(
+                    coordinates[index].first,
                     Color(
                         red = buffer.get(0).toInt(),
                         green = buffer.get(1).toInt(),
                         blue = buffer.get(2).toInt(),
                         alpha = buffer.get(3).toInt()
-                    ), Pair(x, y)
+                    ),
+                    Coordinate(x, y),
                 )
             )
         }
 
-        return screenPoints
+        return probes
     }
 
 }
