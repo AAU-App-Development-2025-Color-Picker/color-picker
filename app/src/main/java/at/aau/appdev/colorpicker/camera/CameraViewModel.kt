@@ -1,6 +1,7 @@
 package at.aau.appdev.colorpicker.camera
 
 import android.content.Context
+import android.media.Image
 import android.os.Environment
 import androidx.compose.ui.graphics.Color
 import androidx.lifecycle.ViewModel
@@ -17,6 +18,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import java.io.ByteArrayOutputStream
 import java.io.File
 import java.util.concurrent.ConcurrentLinkedQueue
 import javax.inject.Inject
@@ -36,6 +38,10 @@ data class CameraUiState(
     val isLoading: Boolean = true,
 )
 
+enum class CaptureStatus {
+    NONE, SINGLE, ALL
+}
+
 
 @HiltViewModel
 class CameraViewModel @Inject constructor(
@@ -48,6 +54,8 @@ class CameraViewModel @Inject constructor(
 
     private val pendingTaps = ConcurrentLinkedQueue<Coordinate>()
 
+    private var captureStatus = CaptureStatus.NONE
+
     fun produceTap(x: Float, y: Float) {
         pendingTaps.add(Coordinate(x, y))
     }
@@ -58,6 +66,39 @@ class CameraViewModel @Inject constructor(
             taps.add(pendingTaps.poll() ?: break)
         }
         return taps
+    }
+
+    fun getCaptureStatus(): Boolean {
+        return this.captureStatus != CaptureStatus.NONE
+    }
+
+    // TODO: Rename.
+    fun onCaptureProbeClicked() {
+        captureStatus = CaptureStatus.SINGLE
+    }
+
+    // TODO: Rename.
+    fun onCaptureAllProbesClicked() {
+        captureStatus = CaptureStatus.ALL
+    }
+
+    @OptIn(ExperimentalTime::class)
+    fun onImageAvailable(image: Image) {
+        val output = ByteArrayOutputStream()
+        ColorFormatConverter.yuvToJpeg(image, output);
+
+        val directory = applicationContext.getExternalFilesDir(Environment.DIRECTORY_PICTURES)
+        val file = File(directory, "${Clock.System.now()}.jpeg")
+
+        file.writeBytes(output.toByteArray())
+
+        when (this.captureStatus) {
+            CaptureStatus.NONE -> throw IllegalStateException()
+            CaptureStatus.SINGLE -> captureProbe(file.path)
+            CaptureStatus.ALL -> captureAllProbes(file.path)
+        }
+
+        this.captureStatus = CaptureStatus.NONE
     }
 
     // FIXME: Careful! It's possible that ARCore decides on its own to let go of anchors; this can
@@ -92,14 +133,14 @@ class CameraViewModel @Inject constructor(
         this.mutableUiState.value = this.mutableUiState.value.copy(probes = probes)
     }
 
-    fun captureProbe() {
+    fun captureProbe(imageUri: String) {
         val activeProbe = uiState.value.activeProbe ?: return
 
         viewModelScope.launch {
             repository.insertColor(
                 ColorEntity(
                     paletteId = null,
-                    photoId = null,
+                    photoId = repository.insertPhoto(PhotoEntity(uri = imageUri)),
                     red = activeProbe.color.red,
                     green = activeProbe.color.green,
                     blue = activeProbe.color.blue,
@@ -109,35 +150,16 @@ class CameraViewModel @Inject constructor(
     }
 
     @OptIn(ExperimentalTime::class)
-    fun captureAllProbes() {
+    fun captureAllProbes(imageUri: String) {
         val probes = uiState.value.probes
         if (probes.isEmpty()) return
 
-        val directory = applicationContext.getExternalFilesDir(Environment.DIRECTORY_PICTURES)
-
-        // TODO: The few lines below here should go into the coroutine scope.
-        val file = File(directory, "${Clock.System.now()}")
-
-        // TODO: Here we need to tell 'CameraRenderer' to grab the latest frame and put it into some
-        //       buffer. The image in that buffer is usually in YUV format and we still need to
-        //       convert it.
-
         viewModelScope.launch {
-            val paletteId = repository.insertPalette(
-                PaletteEntity(
-                    name = null,
-                )
-            )
-            val photoId = repository.insertPhoto(
-                PhotoEntity(
-                    uri = "",
-                )
-            )
             probes.forEach { probe ->
                 repository.insertColor(
                     ColorEntity(
-                        paletteId = paletteId,
-                        photoId = photoId,
+                        paletteId = repository.insertPalette(PaletteEntity(name = null)),
+                        photoId = repository.insertPhoto(PhotoEntity(uri = imageUri)),
                         red = probe.color.red,
                         green = probe.color.green,
                         blue = probe.color.blue,

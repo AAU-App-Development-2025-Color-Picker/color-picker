@@ -151,6 +151,7 @@ object ARCoreSampler {
                 at android.opengl.GLSurfaceView$GLThread.guardedRun(GLSurfaceView.java:1573)
                 at android.opengl.GLSurfaceView$GLThread.run(GLSurfaceView.java:1272)
          */
+        // TODO: Possible solution by using 'withContext(Dispatchers.Main)'?
         val coordinates = projectAnchors(frame, anchors)
         val probes = samplePixels(frame, cameraTextureId, coordinates)
 

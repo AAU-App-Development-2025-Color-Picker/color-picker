@@ -73,19 +73,22 @@ fun CameraScreen(navController: NavController, viewModel: CameraViewModel = hilt
         ARCoreSampler.projectPointsAndSampleColors(
             viewModel::getAllAnchors, viewModel::putAllProbes
         ),
+        ARCoreCaptureHandler.consumeStatusAndProduceImage(
+            viewModel::getCaptureStatus, viewModel::onImageAvailable
+        ),
     )
     val lifecycleOwner = LocalLifecycleOwner.current
 
     // https://developer.android.com/develop/ui/compose/migrate/interoperability-apis/views-in-compose
     AndroidView(
         factory = { context ->
-            // https://developer.android.com/reference/android/opengl/GLSurfaceView
-            // https://github.com/google-ar/arcore-android-sdk/tree/main/samples/hello_ar_kotlin
-            GLSurfaceView(context).apply {
-                setEGLContextClientVersion(3)
-                setRenderer(renderer)
-            }
-        }, modifier = Modifier
+        // https://developer.android.com/reference/android/opengl/GLSurfaceView
+        // https://github.com/google-ar/arcore-android-sdk/tree/main/samples/hello_ar_kotlin
+        GLSurfaceView(context).apply {
+            setEGLContextClientVersion(3)
+            setRenderer(renderer)
+        }
+    }, modifier = Modifier
             .fillMaxSize()
             .pointerInput(Unit) {
                 detectTapGestures(onTap = { offset ->
@@ -95,32 +98,32 @@ fun CameraScreen(navController: NavController, viewModel: CameraViewModel = hilt
                     viewModel.produceTap(offset.x, offset.y)
                 })
             }, update = { view ->
-            val glView = view as GLSurfaceView
+        val glView = view as GLSurfaceView
 
-            val observer = LifecycleEventObserver { _, event ->
-                when (event) {
-                    Lifecycle.Event.ON_START -> {
-                        session.resume()
-                    }
-
-                    Lifecycle.Event.ON_PAUSE -> {
-                        glView.onPause()
-                    }
-
-                    Lifecycle.Event.ON_RESUME -> {
-                        glView.onResume()
-                    }
-
-                    Lifecycle.Event.ON_STOP -> {
-                        session.pause()
-                    }
-
-                    else -> Log.d("GLSurfaceView", "Lifecycle: $event")
+        val observer = LifecycleEventObserver { _, event ->
+            when (event) {
+                Lifecycle.Event.ON_START -> {
+                    session.resume()
                 }
-            }
 
-            lifecycleOwner.lifecycle.addObserver(observer)
-        })
+                Lifecycle.Event.ON_PAUSE -> {
+                    glView.onPause()
+                }
+
+                Lifecycle.Event.ON_RESUME -> {
+                    glView.onResume()
+                }
+
+                Lifecycle.Event.ON_STOP -> {
+                    session.pause()
+                }
+
+                else -> Log.d("GLSurfaceView", "Lifecycle: $event")
+            }
+        }
+
+        lifecycleOwner.lifecycle.addObserver(observer)
+    })
 
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
 
@@ -136,8 +139,8 @@ fun CameraScreen(navController: NavController, viewModel: CameraViewModel = hilt
         ) {
             PhotoLibraryNavButton(navController = navController)
             CaptureButton(
-                onClick = viewModel::captureProbe,
-                onLongClick = viewModel::captureAllProbes
+                onClick = viewModel::onCaptureProbeClicked,
+                onLongClick = viewModel::onCaptureAllProbesClicked
             )
             ColorGalleryNavButton(navController = navController)
         }
@@ -212,22 +215,22 @@ fun ColorProbe(
             )
             .clip(CircleShape)
             // https://developer.android.com/develop/ui/compose/touch-input/pointer-input/understand-gestures
-            // https://developer.android.com/reference/kotlin/androidx/compose/foundation/gestures/package-summary.html
-            .pointerInput(isActive) {
-                detectTapGestures(onTap = { offset ->
-                    Log.d(
-                        "CameraView.ColorProbe", "Tap gesture detected: onTap()"
-                    )
-                }, onDoubleTap = { offset ->
-                    Log.d(
-                        "CameraView.ColorProbe", "Tap gesture detected: onDoubleTap()"
-                    )
-                }, onPress = { offset ->
-                    Log.d(
-                        "CameraView.ColorProbe", "Tap gesture detected: onPress()"
-                    )
-                })
-            }
+        // https://developer.android.com/reference/kotlin/androidx/compose/foundation/gestures/package-summary.html
+        .pointerInput(isActive) {
+            detectTapGestures(onTap = { offset ->
+                Log.d(
+                    "CameraView.ColorProbe", "Tap gesture detected: onTap()"
+                )
+            }, onDoubleTap = { offset ->
+                Log.d(
+                    "CameraView.ColorProbe", "Tap gesture detected: onDoubleTap()"
+                )
+            }, onPress = { offset ->
+                Log.d(
+                    "CameraView.ColorProbe", "Tap gesture detected: onPress()"
+                )
+            })
+        }
             .pointerInput(isActive) {
                 detectDragGestures(onDragStart = {
                     Log.d(

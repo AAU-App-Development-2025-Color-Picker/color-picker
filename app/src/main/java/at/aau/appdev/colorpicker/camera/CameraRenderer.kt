@@ -24,6 +24,7 @@ class CameraRenderer(
     private val display: Display,
     private val handleInteraction: (Frame) -> Unit,
     private val updatePreview: (Frame, Int) -> Unit,
+    private val captureImage: (Frame) -> Unit,
 ) : GLSurfaceView.Renderer {
 
     private var displayWidth = 1
@@ -146,6 +147,8 @@ class CameraRenderer(
             GLES30.glDrawArrays(GLES30.GL_TRIANGLE_STRIP, 0, 4)
 
             updatePreview(frame, cameraTextureId)
+
+            captureImage(frame)
         } catch (e: CameraNotAvailableException) {
             Log.e(
                 "GLSurfaceView.Renderer.onDrawFrame", "Camera not available during onDrawFrame", e
