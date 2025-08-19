@@ -3,6 +3,12 @@ package at.aau.appdev.colorpicker
 import androidx.compose.ui.graphics.Color
 import kotlin.random.Random
 
+
+class IdGenerator {
+    private var id = 0L
+    fun next(): Long = id++
+}
+
 fun generateColor(): Color {
     val hue = Random.nextFloat() * 360f
     val saturation = Random.nextFloat() * 0.5f + 0.3f

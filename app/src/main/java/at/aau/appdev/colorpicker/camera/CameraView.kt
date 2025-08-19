@@ -6,6 +6,10 @@ import androidx.activity.compose.LocalActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkOut
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.combinedClickable
@@ -58,74 +62,85 @@ import at.aau.appdev.colorpicker.ui.theme.ColorPickerTheme
 
 @Composable
 fun CameraScreen(navController: NavController, viewModel: CameraViewModel = hiltViewModel()) {
-    val session = (LocalActivity.current as MainActivity).session!!
+    val session = (LocalActivity.current as MainActivity).session
     val display = LocalContext.current.display
     val renderer = CameraRenderer(
-        session, display,
+        session,
+        display,
         ARCoreInteractionHandler.consumeTapsAndProduceAnchors(
-            viewModel::consumeTaps, viewModel::produceAnchors,
+            viewModel::getAllTaps, viewModel::putAllAnchors,
         ),
         ARCoreSampler.projectPointsAndSampleColors(
-            viewModel::consumeAnchors, viewModel::producePoints
+            viewModel::getAllAnchors, viewModel::putAllProbes
         ),
     )
     val lifecycleOwner = LocalLifecycleOwner.current
 
     // https://developer.android.com/develop/ui/compose/migrate/interoperability-apis/views-in-compose
-    AndroidView(factory = { context ->
-        // https://developer.android.com/reference/android/opengl/GLSurfaceView
-        // https://github.com/google-ar/arcore-android-sdk/tree/main/samples/hello_ar_kotlin
-        GLSurfaceView(context).apply {
-            setEGLContextClientVersion(3)
-            setRenderer(renderer)
-        }
-    }, modifier = Modifier
-        .fillMaxSize()
-        .pointerInput(Unit) {
-            detectTapGestures(onTap = { offset ->
-                Log.d(
-                    "CameraView.CameraScreen", "Tapped at coordinates ${offset.x}, ${offset.y}."
-                )
-                viewModel.registerTap(offset.x, offset.y)
-            })
-        }, update = { view ->
-        val glView = view as GLSurfaceView
-
-        val observer = LifecycleEventObserver { _, event ->
-            when (event) {
-                Lifecycle.Event.ON_START -> {
-                    session.resume()
-                }
-
-                Lifecycle.Event.ON_PAUSE -> {
-                    glView.onPause()
-                }
-
-                Lifecycle.Event.ON_RESUME -> {
-                    glView.onResume()
-                }
-
-                Lifecycle.Event.ON_STOP -> {
-                    session.pause()
-                }
-
-                else -> Log.d("GLSurfaceView", "Lifecycle: $event")
+    AndroidView(
+        factory = { context ->
+            // https://developer.android.com/reference/android/opengl/GLSurfaceView
+            // https://github.com/google-ar/arcore-android-sdk/tree/main/samples/hello_ar_kotlin
+            GLSurfaceView(context).apply {
+                setEGLContextClientVersion(3)
+                setRenderer(renderer)
             }
-        }
+        }, modifier = Modifier
+            .fillMaxSize()
+            .pointerInput(Unit) {
+                detectTapGestures(onTap = { offset ->
+                    Log.d(
+                        "CameraView.CameraScreen", "Tapped at coordinates ${offset.x}, ${offset.y}."
+                    )
+                    viewModel.produceTap(offset.x, offset.y)
+                })
+            }, update = { view ->
+            val glView = view as GLSurfaceView
 
-        lifecycleOwner.lifecycle.addObserver(observer)
-    })
+            val observer = LifecycleEventObserver { _, event ->
+                when (event) {
+                    Lifecycle.Event.ON_START -> {
+                        session.resume()
+                    }
+
+                    Lifecycle.Event.ON_PAUSE -> {
+                        glView.onPause()
+                    }
+
+                    Lifecycle.Event.ON_RESUME -> {
+                        glView.onResume()
+                    }
+
+                    Lifecycle.Event.ON_STOP -> {
+                        session.pause()
+                    }
+
+                    else -> Log.d("GLSurfaceView", "Lifecycle: $event")
+                }
+            }
+
+            lifecycleOwner.lifecycle.addObserver(observer)
+        })
 
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
 
-    ColorProbeOverlay(uiState.points)
+    ColorProbeOverlay(uiState.probes)
     Box(modifier = Modifier.fillMaxSize()) {
-        ControlRow(
-            modifier = Modifier
+        Row(
+            Modifier
+                .fillMaxWidth()
                 .align(Alignment.BottomCenter)
                 .padding(bottom = 32.dp),
-            navController = navController
-        )
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceEvenly
+        ) {
+            PhotoLibraryNavButton(navController = navController)
+            CaptureButton(
+                onClick = viewModel::captureProbe,
+                onLongClick = viewModel::captureAllProbes
+            )
+            ColorGalleryNavButton(navController = navController)
+        }
     }
 }
 
@@ -140,28 +155,34 @@ fun CameraScreenPreview() {
 
 @Composable
 fun ColorProbeOverlay(
-    points: List<Point>,
+    probes: List<Probe>,
     modifier: Modifier = Modifier,
 ) {
     Box(modifier = modifier.fillMaxSize()) {
-        points.forEach { point ->
-            key(point) {
+        probes.forEach { point ->
+            key(point.id) {
                 val color = point.color
                 val offset = IntOffset(
-                    (point.position.first).toInt(),
-                    (point.position.second).toInt(),
+                    (point.position.x).toInt(),
+                    (point.position.y).toInt(),
                 )
 
-                ColorProbe(
-                    color = color,
-                    offset = offset,
-                    onSingleTap = {},
-                    onDoubleTap = {},
-                    onDragStart = {},
-                    onDragEnd = {},
-                    isActive = false
-                )
-
+                // https://developer.android.com/develop/ui/compose/animation/composables-modifiers#animatedcontent
+                AnimatedVisibility(
+                    visible = true,
+                    enter = fadeIn(),
+                    exit = fadeOut() + shrinkOut(shrinkTowards = Alignment.BottomEnd)
+                ) {
+                    ColorProbe(
+                        color = color,
+                        offset = offset,
+                        onSingleTap = {},
+                        onDoubleTap = {},
+                        onDragStart = {},
+                        onDragEnd = {},
+                        isActive = false
+                    )
+                }
             }
         }
     }
@@ -179,85 +200,77 @@ fun ColorProbe(
     onDragEnd: () -> Unit,
     isActive: Boolean
 ) {
-    Box(modifier = Modifier
-        .offset { offset }
-        .size(ringRadiusDp * 2)
-        .border(
-            width = ringThicknessDp, color = Color.White, shape = CircleShape
-        )
-        .background(
-            color = color, shape = CircleShape
-        )
-        .clip(CircleShape)
-        // https://developer.android.com/develop/ui/compose/touch-input/pointer-input/understand-gestures
-        // https://developer.android.com/reference/kotlin/androidx/compose/foundation/gestures/package-summary.html
-        .pointerInput(isActive) {
-            detectTapGestures(onTap = { offset ->
-                Log.d(
-                    "CameraView.ColorProbe", "Tap gesture detected: onTap()"
-                )
-            }, onDoubleTap = { offset ->
-                Log.d(
-                    "CameraView.ColorProbe", "Tap gesture detected: onDoubleTap()"
-                )
-            }, onPress = { offset ->
-                Log.d(
-                    "CameraView.ColorProbe", "Tap gesture detected: onPress()"
-                )
+    Box(
+        modifier = Modifier
+            .offset { offset }
+            .size(ringRadiusDp * 2)
+            .border(
+                width = ringThicknessDp, color = Color.White, shape = CircleShape
+            )
+            .background(
+                color = color, shape = CircleShape
+            )
+            .clip(CircleShape)
+            // https://developer.android.com/develop/ui/compose/touch-input/pointer-input/understand-gestures
+            // https://developer.android.com/reference/kotlin/androidx/compose/foundation/gestures/package-summary.html
+            .pointerInput(isActive) {
+                detectTapGestures(onTap = { offset ->
+                    Log.d(
+                        "CameraView.ColorProbe", "Tap gesture detected: onTap()"
+                    )
+                }, onDoubleTap = { offset ->
+                    Log.d(
+                        "CameraView.ColorProbe", "Tap gesture detected: onDoubleTap()"
+                    )
+                }, onPress = { offset ->
+                    Log.d(
+                        "CameraView.ColorProbe", "Tap gesture detected: onPress()"
+                    )
+                })
+            }
+            .pointerInput(isActive) {
+                detectDragGestures(onDragStart = {
+                    Log.d(
+                        "CameraView.ColorProbe", "Drag gesture detected: onDragStart()"
+                    )
+                }, onDragEnd = {
+                    Log.d(
+                        "CameraView.ColorProbe", "Drag gesture detected: onDragEnd()"
+                    )
+                }, onDrag = { change, offset ->
+                    Log.d(
+                        "CameraView.ColorProbe", "Drag gesture detected: onDrag()"
+                    )
+                })
+            }
+            .pointerInput(isActive) {
+                // TODO: This gesture is equivalent to the drag gesture but also activates a magnifying
+                // TODO: glass as well as slower movement for better accuracy.
+                detectDragGesturesAfterLongPress(onDragStart = {
+                    Log.d(
+                        "CameraView.ColorProbe",
+                        "Drag gesture after long press detected: onDragStart()"
+                    )
+                }, onDragEnd = {
+                    Log.d(
+                        "CameraView.ColorProbe",
+                        "Drag gesture after long press detected: onDragEnd()"
+                    )
+                }, onDrag = { change, offset ->
+                    Log.d(
+                        "CameraView.ColorProbe", "Drag gesture after long press detected: onDrag()"
+                    )
+                })
             })
-        }
-        .pointerInput(isActive) {
-            detectDragGestures(onDragStart = {
-                Log.d(
-                    "CameraView.ColorProbe", "Drag gesture detected: onDragStart()"
-                )
-            }, onDragEnd = {
-                Log.d(
-                    "CameraView.ColorProbe", "Drag gesture detected: onDragEnd()"
-                )
-            }, onDrag = { change, offset ->
-                Log.d(
-                    "CameraView.ColorProbe", "Drag gesture detected: onDrag()"
-                )
-            })
-        }
-        .pointerInput(isActive) {
-            // TODO: This gesture is equivalent to the drag gesture but also activates a magnifying
-            // TODO: glass as well as slower movement for better accuracy.
-            detectDragGesturesAfterLongPress(onDragStart = {
-                Log.d(
-                    "CameraView.ColorProbe", "Drag gesture after long press detected: onDragStart()"
-                )
-            }, onDragEnd = {
-                Log.d(
-                    "CameraView.ColorProbe", "Drag gesture after long press detected: onDragEnd()"
-                )
-            }, onDrag = { change, offset ->
-                Log.d(
-                    "CameraView.ColorProbe", "Drag gesture after long press detected: onDrag()"
-                )
-            })
-        })
-}
-
-@Composable
-fun ControlRow(modifier: Modifier, navController: NavController) {
-    Row(
-        modifier.fillMaxWidth(),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.SpaceEvenly
-    ) {
-        PhotoLibraryNavButton(navController = navController)
-        CaptureButton()
-        ColorGalleryNavButton(navController = navController)
-    }
 }
 
 @Composable
 fun CaptureButton(
     modifier: Modifier = Modifier,
     color: Color = Color.DarkGray,
-    shape: Shape = RoundedCornerShape(50)
+    shape: Shape = RoundedCornerShape(50),
+    onClick: () -> Unit,
+    onLongClick: () -> Unit,
 ) {
     Box(
         modifier = modifier
@@ -266,11 +279,11 @@ fun CaptureButton(
             .background(color, shape)
             .border(4.dp, Color.White, shape)
             .combinedClickable(onClick = {
-                // TODO: Save single probe to gallery (using 'viewModel').
                 Log.d("CameraView.CaptureButton", "Short press of capture button.")
+                onClick()
             }, onLongClick = {
-                // TODO: Save multiple probes to gallery (using 'viewModel').
                 Log.d("CameraView.CaptureButton", "Long press of capture button.")
+                onLongClick()
             })
     )
 }
