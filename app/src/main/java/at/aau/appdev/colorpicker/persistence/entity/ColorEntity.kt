@@ -4,6 +4,8 @@ import androidx.room.Entity
 import androidx.room.ForeignKey
 import androidx.room.Index
 import androidx.room.PrimaryKey
+import kotlin.time.Clock
+import kotlin.time.ExperimentalTime
 
 @Entity(
     tableName = "colors", foreignKeys = [ForeignKey(
@@ -18,13 +20,12 @@ import androidx.room.PrimaryKey
         onDelete = ForeignKey.SET_NULL
     )], indices = [Index("paletteId"), Index("photoId")]
 )
-data class ColorEntity(
+data class ColorEntity @OptIn(ExperimentalTime::class) constructor(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
     val paletteId: Long?,
     val photoId: Long?,
-    val hexCode: String,
-    val labL: Double?,
-    val labA: Double?,
-    val labB: Double?,
-    val capturedAt: Long = System.currentTimeMillis()
+    val red: Float,
+    val green: Float,
+    val blue: Float,
+    val capturedAt: String = Clock.System.now().toString()
 )

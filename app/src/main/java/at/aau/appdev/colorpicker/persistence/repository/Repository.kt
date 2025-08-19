@@ -14,12 +14,24 @@ class Repository @Inject constructor(
     private val photoDao: PhotoDao,
 ) {
 
+    suspend fun insertColor(color: ColorEntity): Long {
+        return colorDao.insertColor(color);
+    }
+
     suspend fun getColors(): List<ColorEntity> {
         return colorDao.getAll();
     }
 
+    suspend fun insertPalette(palette: PaletteEntity): Long {
+        return paletteDao.insertPalette(palette);
+    }
+
     suspend fun getPalettes(): List<PaletteEntity> {
         return paletteDao.getAll();
+    }
+
+    suspend fun insertPhoto(photo: PhotoEntity): Long {
+        return photoDao.insertPhoto(photo);
     }
 
     suspend fun getPhotos(): List<PhotoEntity> {

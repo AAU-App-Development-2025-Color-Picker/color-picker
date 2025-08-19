@@ -2,6 +2,7 @@ package at.aau.appdev.colorpicker.persistence
 
 import androidx.room.Database
 import androidx.room.RoomDatabase
+import androidx.room.TypeConverters
 import at.aau.appdev.colorpicker.persistence.dao.ColorDao
 import at.aau.appdev.colorpicker.persistence.dao.PaletteDao
 import at.aau.appdev.colorpicker.persistence.dao.PhotoDao
@@ -19,6 +20,7 @@ import at.aau.appdev.colorpicker.persistence.entity.PhotoEntity
     version = 1,
     exportSchema = true,
 )
+@TypeConverters(InstantConverter::class)
 abstract class Database : RoomDatabase() {
     abstract fun colorDao(): ColorDao
     abstract fun paletteDao(): PaletteDao
