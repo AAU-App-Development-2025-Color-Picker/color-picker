@@ -19,6 +19,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.staggeredgrid.LazyVerticalStaggeredGrid
 import androidx.compose.foundation.lazy.staggeredgrid.StaggeredGridCells
+import androidx.compose.foundation.lazy.staggeredgrid.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
@@ -53,10 +54,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavController
 import androidx.navigation.compose.rememberNavController
 import at.aau.appdev.colorpicker.R
-import at.aau.appdev.colorpicker.generateColor
-import at.aau.appdev.colorpicker.generateColors
 import at.aau.appdev.colorpicker.ui.theme.ColorPickerTheme
-import kotlin.random.Random
 
 @Composable
 fun GalleryScreen(
@@ -89,7 +87,7 @@ fun GalleryScreen(
                         )
                     }
                 }
-                CardStaggeredGrid()
+                CardStaggeredGrid(uiState.items)
             }
             CameraNavButton(navController)
             ActionButton(navController)
@@ -153,7 +151,7 @@ fun GreetingPreview() {
 }
 
 @Composable
-fun CardStaggeredGrid() {
+fun CardStaggeredGrid(items: List<GalleryItem> = emptyList()) {
     LazyVerticalStaggeredGrid(
         columns = StaggeredGridCells.Fixed(2),
         modifier = Modifier
@@ -162,16 +160,34 @@ fun CardStaggeredGrid() {
         verticalItemSpacing = 2.dp,
         horizontalArrangement = Arrangement.spacedBy(2.dp)
     ) {
-        items(20) { item ->
-            if (Random.nextInt(
-                    0, 5
-                ) > 1
-            ) ColorSwatch(color = generateColor()) else ColorFan(colors = generateColors())
+        items(items) { item ->
+            when (item) {
+                is GalleryItem.Swatch -> {
+                    val color = Color(
+                        red = item.color.red,
+                        green = item.color.green,
+                        blue = item.color.blue,
+                    )
+                    ColorSwatch(color = color)
+                }
+
+                is GalleryItem.Palette -> {
+                    val colors = item.palette.colors.map { colorEntity ->
+                        Color(
+                            red = colorEntity.red,
+                            green = colorEntity.green,
+                            blue = colorEntity.blue,
+                        )
+                    }
+                    ColorFan(colors = colors)
+                }
+            }
         }
     }
 }
 
 val offsets = arrayOf(
+    floatArrayOf(1.0f),
     floatArrayOf(0.6875f, 1.0f),
     floatArrayOf(0.625f, 0.8375f, 1.0f),
     floatArrayOf(0.5625f, 0.75f, 0.8875f, 1.0f),
@@ -232,7 +248,7 @@ fun ColorFan(modifier: Modifier = Modifier, colors: List<Color>) {
             Box(
                 modifier = Modifier
                     .fillMaxHeight()
-                    .fillMaxWidth(offsets.get(count - 2).get(i))
+                    .fillMaxWidth(offsets.get(count - 1).get(i))
                     .clip(RoundedCornerShape(16.dp))
                     .background(MaterialTheme.colorScheme.background)
                     .padding(4.dp)

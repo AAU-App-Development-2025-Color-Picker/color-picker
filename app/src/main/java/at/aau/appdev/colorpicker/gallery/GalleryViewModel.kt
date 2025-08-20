@@ -3,7 +3,7 @@ package at.aau.appdev.colorpicker.gallery
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import at.aau.appdev.colorpicker.persistence.entity.ColorEntity
-import at.aau.appdev.colorpicker.persistence.entity.PaletteEntity
+import at.aau.appdev.colorpicker.persistence.entity.PaletteWithColors
 import at.aau.appdev.colorpicker.persistence.repository.Repository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -14,9 +14,13 @@ import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 
+sealed class GalleryItem {
+    data class Swatch(val color: ColorEntity) : GalleryItem()
+    data class Palette(val palette: PaletteWithColors) : GalleryItem()
+}
+
 data class GalleryUiState(
-    val colors: List<ColorEntity> = emptyList(),
-    val palettes: List<PaletteEntity> = emptyList(),
+    val items: List<GalleryItem> = emptyList(),
     val isLoading: Boolean = true,
 )
 
@@ -33,12 +37,22 @@ class GalleryViewModel @Inject constructor(private val repository: Repository) :
         viewModelScope.launch {
             mutableUiState.update { it.copy(isLoading = true) }
 
-            val colors = repository.getColors()
-            val palettes = repository.getPalettes()
+            val swatches = repository.getColors()
+            val palettesWithColors = repository.getPalettesWithColors()
+
+            val galleryItems = mutableListOf<GalleryItem>()
+
+            swatches.forEach { color ->
+                galleryItems.add(GalleryItem.Swatch(color))
+            }
+            palettesWithColors.forEach { paletteWithColor ->
+                galleryItems.add(GalleryItem.Palette(paletteWithColor))
+            }
 
             mutableUiState.update {
                 it.copy(
-                    colors = colors, palettes = palettes, isLoading = false
+                    items = galleryItems,
+                    isLoading = false,
                 )
             }
         }

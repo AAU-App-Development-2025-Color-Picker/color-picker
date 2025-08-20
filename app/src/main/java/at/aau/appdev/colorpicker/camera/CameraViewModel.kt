@@ -86,6 +86,7 @@ class CameraViewModel @Inject constructor(
     fun onImageAvailable(image: Image) {
         val output = ByteArrayOutputStream()
         ColorFormatConverter.yuvToJpeg(image, output);
+        image.close()
 
         val directory = applicationContext.getExternalFilesDir(Environment.DIRECTORY_PICTURES)
         val file = File(directory, "${Clock.System.now()}.jpeg")

@@ -5,6 +5,7 @@ import at.aau.appdev.colorpicker.persistence.dao.PaletteDao
 import at.aau.appdev.colorpicker.persistence.dao.PhotoDao
 import at.aau.appdev.colorpicker.persistence.entity.ColorEntity
 import at.aau.appdev.colorpicker.persistence.entity.PaletteEntity
+import at.aau.appdev.colorpicker.persistence.entity.PaletteWithColors
 import at.aau.appdev.colorpicker.persistence.entity.PhotoEntity
 import javax.inject.Inject
 
@@ -28,6 +29,10 @@ class Repository @Inject constructor(
 
     suspend fun getPalettes(): List<PaletteEntity> {
         return paletteDao.getAll();
+    }
+
+    suspend fun getPalettesWithColors(): List<PaletteWithColors> {
+        return paletteDao.getAllWithColors();
     }
 
     suspend fun insertPhoto(photo: PhotoEntity): Long {

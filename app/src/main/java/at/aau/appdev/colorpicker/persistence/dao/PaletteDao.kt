@@ -4,7 +4,7 @@ import androidx.room.Dao
 import androidx.room.Insert
 import androidx.room.Query
 import at.aau.appdev.colorpicker.persistence.entity.PaletteEntity
-import at.aau.appdev.colorpicker.persistence.entity.PaletteWithColor
+import at.aau.appdev.colorpicker.persistence.entity.PaletteWithColors
 
 
 @Dao
@@ -15,6 +15,6 @@ interface PaletteDao {
     @Query("SELECT * FROM palettes")
     suspend fun getAll(): List<PaletteEntity>
 
-    @Query("SELECT * FROM palettes WHERE id = :id")
-    suspend fun getPaletteWithColors(id: Long): PaletteWithColor
+    @Query("SELECT * FROM palettes INNER JOIN colors ON palettes.id = colors.paletteId")
+    suspend fun getAllWithColors(): List<PaletteWithColors>
 }
