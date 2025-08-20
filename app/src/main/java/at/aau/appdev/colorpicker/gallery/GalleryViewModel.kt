@@ -37,7 +37,7 @@ class GalleryViewModel @Inject constructor(private val repository: Repository) :
         viewModelScope.launch {
             mutableUiState.update { it.copy(isLoading = true) }
 
-            val swatches = repository.getColors()
+            val swatches = repository.getColorsWithoutPalette()
             val palettesWithColors = repository.getPalettesWithColors()
 
             val galleryItems = mutableListOf<GalleryItem>()

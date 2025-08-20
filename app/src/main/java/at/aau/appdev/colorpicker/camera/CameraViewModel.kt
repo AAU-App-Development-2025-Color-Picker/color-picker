@@ -138,10 +138,12 @@ class CameraViewModel @Inject constructor(
         val activeProbe = uiState.value.activeProbe ?: return
 
         viewModelScope.launch {
+            val paletteId = null
+            val photoId = repository.insertPhoto(PhotoEntity(uri = imageUri))
             repository.insertColor(
                 ColorEntity(
-                    paletteId = null,
-                    photoId = repository.insertPhoto(PhotoEntity(uri = imageUri)),
+                    paletteId = paletteId,
+                    photoId = photoId,
                     red = activeProbe.color.red,
                     green = activeProbe.color.green,
                     blue = activeProbe.color.blue,
@@ -156,11 +158,13 @@ class CameraViewModel @Inject constructor(
         if (probes.isEmpty()) return
 
         viewModelScope.launch {
+            val paletteId = repository.insertPalette(PaletteEntity(name = null))
+            val photoId = repository.insertPhoto(PhotoEntity(uri = imageUri))
             probes.forEach { probe ->
                 repository.insertColor(
                     ColorEntity(
-                        paletteId = repository.insertPalette(PaletteEntity(name = null)),
-                        photoId = repository.insertPhoto(PhotoEntity(uri = imageUri)),
+                        paletteId = paletteId,
+                        photoId = photoId,
                         red = probe.color.red,
                         green = probe.color.green,
                         blue = probe.color.blue,

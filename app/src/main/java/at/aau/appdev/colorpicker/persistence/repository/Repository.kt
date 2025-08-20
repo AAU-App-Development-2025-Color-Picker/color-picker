@@ -23,6 +23,10 @@ class Repository @Inject constructor(
         return colorDao.getAll();
     }
 
+    suspend fun getColorsWithoutPalette(): List<ColorEntity> {
+        return colorDao.getAllWithoutPalette();
+    }
+
     suspend fun insertPalette(palette: PaletteEntity): Long {
         return paletteDao.insertPalette(palette);
     }

@@ -15,6 +15,6 @@ interface PaletteDao {
     @Query("SELECT * FROM palettes")
     suspend fun getAll(): List<PaletteEntity>
 
-    @Query("SELECT * FROM palettes INNER JOIN colors ON palettes.id = colors.paletteId")
+    @Query("SELECT * FROM palettes")
     suspend fun getAllWithColors(): List<PaletteWithColors>
 }

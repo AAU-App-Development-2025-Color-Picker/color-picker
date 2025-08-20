@@ -15,6 +15,9 @@ interface ColorDao {
     @Query("SELECT * FROM colors")
     suspend fun getAll(): List<ColorEntity>
 
+    @Query("SELECT * FROM colors WHERE paletteId IS NULL")
+    suspend fun getAllWithoutPalette(): List<ColorEntity>
+
     @Query("SELECT * FROM colors WHERE id = :id")
     suspend fun getColorWithPhoto(id: Long): ColorWithPhoto
 }
