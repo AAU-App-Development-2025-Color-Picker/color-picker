@@ -119,7 +119,7 @@ object ARCoreSampler {
     }
 
     fun projectPointsAndSampleColors(
-        consumeAnchors: () -> List<Pair<Long, Anchor>>, producePoints: (List<Probe>) -> Unit
+        consumeAnchors: () -> List<Pair<Long, Anchor>>, producePoints: (Map<Long, Probe>) -> Unit
     ): (Frame, Int) -> Unit {
         return { frame, cameraTextureId ->
             projectPointsAndSampleColors(frame, cameraTextureId, consumeAnchors, producePoints)
@@ -130,7 +130,7 @@ object ARCoreSampler {
         frame: Frame,
         cameraTextureId: Int,
         consumeAnchors: () -> List<Pair<Long, Anchor>>,
-        produceProbes: (List<Probe>) -> Unit
+        produceProbes: (Map<Long, Probe>) -> Unit
     ) {
         val anchors = consumeAnchors()
         if (anchors.isEmpty()) return
@@ -215,7 +215,7 @@ object ARCoreSampler {
 
     fun samplePixels(
         frame: Frame, cameraTextureId: Int, coordinates: List<Pair<Long, Coordinate>>
-    ): List<Probe> {
+    ): Map<Long, Probe> {
         GLES30.glBindFramebuffer(GLES30.GL_FRAMEBUFFER, frameBufferId)
         GLES30.glViewport(0, 0, 1, 1)
 
@@ -244,7 +244,7 @@ object ARCoreSampler {
             textureCoords,
         )
 
-        val probes = mutableListOf<Probe>()
+        val probes = mutableMapOf<Long, Probe>()
 
         for (index in coordinates.indices) {
             val x = screenCoords[index * 2]
@@ -259,9 +259,9 @@ object ARCoreSampler {
             val buffer = ByteBuffer.allocateDirect(4)
             GLES30.glReadPixels(0, 0, 1, 1, GLES30.GL_RGBA, GLES30.GL_UNSIGNED_BYTE, buffer)
 
-            probes.add(
+            probes.put(
+                coordinates[index].first,
                 Probe(
-                    coordinates[index].first,
                     Color(
                         red = buffer.get(0).toInt(),
                         green = buffer.get(1).toInt(),
@@ -269,6 +269,7 @@ object ARCoreSampler {
                         alpha = buffer.get(3).toInt()
                     ),
                     Coordinate(x, y),
+                    true,
                 )
             )
         }

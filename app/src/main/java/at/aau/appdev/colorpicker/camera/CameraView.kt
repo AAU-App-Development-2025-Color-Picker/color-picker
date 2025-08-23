@@ -7,9 +7,8 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.shrinkOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.slideOut
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.combinedClickable
@@ -29,8 +28,12 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.BlurredEdgeTreatment
@@ -42,12 +45,16 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInWindow
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.round
+import androidx.compose.ui.unit.toSize
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.Lifecycle
@@ -127,7 +134,7 @@ fun CameraScreen(navController: NavController, viewModel: CameraViewModel = hilt
 
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
 
-    ColorProbeOverlay(uiState.probes)
+    ColorProbeOverlay(uiState.guidToProbe, uiState.animationOffset.round())
     Box(modifier = Modifier.fillMaxSize()) {
         Row(
             Modifier
@@ -137,12 +144,12 @@ fun CameraScreen(navController: NavController, viewModel: CameraViewModel = hilt
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceEvenly
         ) {
-            PhotoLibraryNavButton(navController = navController)
+            PhotoLibraryNavButton()
             CaptureButton(
                 onClick = viewModel::onCaptureProbeClicked,
                 onLongClick = viewModel::onCaptureAllProbesClicked
             )
-            ColorGalleryNavButton(navController = navController)
+            ColorGalleryNavButton(navController = navController, viewModel::setAnimationOffset)
         }
     }
 }
@@ -158,32 +165,36 @@ fun CameraScreenPreview() {
 
 @Composable
 fun ColorProbeOverlay(
-    probes: List<Probe>,
+    guidToProbe: Map<Long, Probe>,
+    animationOffset: IntOffset,
     modifier: Modifier = Modifier,
 ) {
     Box(modifier = modifier.fillMaxSize()) {
-        probes.forEach { point ->
-            key(point.id) {
-                val color = point.color
-                val offset = IntOffset(
-                    (point.position.x).toInt(),
-                    (point.position.y).toInt(),
+        guidToProbe.forEach { (id, probe) ->
+            key(id) {
+                val probeColor = probe.color
+                val probeOffset = IntOffset(
+                    (probe.position.x).toInt(),
+                    (probe.position.y).toInt(),
                 )
 
                 // https://developer.android.com/develop/ui/compose/animation/composables-modifiers#animatedcontent
+                var visible by remember { mutableStateOf(false) }
+                LaunchedEffect(probe.isVisible) {
+                    visible = probe.isVisible
+                }
                 AnimatedVisibility(
-                    visible = true,
-                    enter = fadeIn(),
-                    exit = fadeOut() + shrinkOut(shrinkTowards = Alignment.BottomEnd)
-                ) {
+                    visible = visible,
+                    enter = scaleIn(),
+                    exit = slideOut() { animationOffset - probeOffset },
+                    modifier = Modifier.offset { probeOffset }) {
                     ColorProbe(
-                        color = color,
-                        offset = offset,
+                        color = probeColor,
                         onSingleTap = {},
                         onDoubleTap = {},
                         onDragStart = {},
                         onDragEnd = {},
-                        isActive = false
+                        isActive = false,
                     )
                 }
             }
@@ -194,7 +205,6 @@ fun ColorProbeOverlay(
 @Composable
 fun ColorProbe(
     color: Color,
-    offset: IntOffset,
     ringRadiusDp: Dp = 12.dp,
     ringThicknessDp: Dp = 4.dp,
     onSingleTap: () -> Unit,
@@ -205,7 +215,7 @@ fun ColorProbe(
 ) {
     Box(
         modifier = Modifier
-            .offset { offset }
+            .offset(-ringRadiusDp, -ringRadiusDp)
             .size(ringRadiusDp * 2)
             .border(
                 width = ringThicknessDp, color = Color.White, shape = CircleShape
@@ -292,8 +302,10 @@ fun CaptureButton(
 }
 
 @Composable
-fun DropShadowIconButton(resource: Int, contentDescription: String?, onClick: () -> Unit) {
-    Box(modifier = Modifier.size(64.dp)) {
+fun DropShadowIconButton(
+    modifier: Modifier = Modifier, resource: Int, contentDescription: String?, onClick: () -> Unit
+) {
+    Box(modifier = modifier.size(64.dp)) {
         Icon(
             painter = painterResource(resource),
             contentDescription = null,
@@ -315,24 +327,29 @@ fun DropShadowIconButton(resource: Int, contentDescription: String?, onClick: ()
 }
 
 @Composable
-fun PhotoLibraryNavButton(navController: NavController) {
+fun PhotoLibraryNavButton() {
     val launcher =
         rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
             Log.d("CameraView.PhotoLibraryNavButton", "URI = $uri")
         }
-    DropShadowIconButton(R.drawable.ic_photo_library, "Photo Library", {
-        launcher.launch(
-            PickVisualMediaRequest(
-                mediaType = ActivityResultContracts.PickVisualMedia.ImageOnly
+    DropShadowIconButton(
+        resource = R.drawable.ic_photo_library, contentDescription = "Photo Library", onClick = {
+            launcher.launch(
+                PickVisualMediaRequest(
+                    mediaType = ActivityResultContracts.PickVisualMedia.ImageOnly
+                )
             )
-        )
-    })
+        })
 }
 
 @Composable
-fun ColorGalleryNavButton(navController: NavController) {
-    DropShadowIconButton(
-        R.drawable.ic_color_palette, "Color Palette", {
-            navController.navigate("gallery")
-        })
+fun ColorGalleryNavButton(navController: NavController, publishOffset: (Offset) -> Unit) {
+    DropShadowIconButton(modifier = Modifier.onGloballyPositioned { layoutCoordinates ->
+        val (x, y) = layoutCoordinates.size.toSize() / 2f
+        publishOffset(
+            layoutCoordinates.positionInWindow() + Offset(x, y)
+        )
+    }, resource = R.drawable.ic_color_palette, contentDescription = "Color Palette", onClick = {
+        navController.navigate("gallery")
+    })
 }

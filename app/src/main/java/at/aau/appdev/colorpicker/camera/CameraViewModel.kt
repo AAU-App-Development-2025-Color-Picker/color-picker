@@ -3,6 +3,7 @@ package at.aau.appdev.colorpicker.camera
 import android.content.Context
 import android.media.Image
 import android.os.Environment
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -27,14 +28,15 @@ import kotlin.time.ExperimentalTime
 
 
 data class Probe(
-    val id: Long,
     val color: Color,
     val position: Coordinate,
+    val isVisible: Boolean,
 )
 
 data class CameraUiState(
-    val probes: List<Probe> = emptyList(),
+    val guidToProbe: Map<Long, Probe> = emptyMap(),
     val activeProbe: Probe? = null,
+    val animationOffset: Offset = Offset.Unspecified,
     val isLoading: Boolean = true,
 )
 
@@ -127,11 +129,21 @@ class CameraViewModel @Inject constructor(
         this.guidToAnchor.values.map(Anchor::detach)
         this.guidToAnchor.clear()
 
-        this.mutableUiState.value = this.mutableUiState.value.copy(probes = emptyList())
+        clearAllProbes()
     }
 
-    fun putAllProbes(probes: List<Probe>) {
-        this.mutableUiState.value = this.mutableUiState.value.copy(probes = probes)
+    fun putAllProbes(guidToProbe: Map<Long, Probe>) {
+        this.mutableUiState.value = this.mutableUiState.value.copy(
+            guidToProbe = this.mutableUiState.value.guidToProbe + guidToProbe
+        )
+    }
+
+    private fun clearAllProbes() {
+        this.mutableUiState.value = this.mutableUiState.value.copy(
+            guidToProbe = this.mutableUiState.value.guidToProbe.map { (key, value) ->
+                key to value.copy(isVisible = false)
+            }.toMap()
+        )
     }
 
     fun captureProbe(imageUri: String) {
@@ -154,7 +166,7 @@ class CameraViewModel @Inject constructor(
 
     @OptIn(ExperimentalTime::class)
     fun captureAllProbes(imageUri: String) {
-        val probes = uiState.value.probes
+        val probes = uiState.value.guidToProbe.values
         if (probes.isEmpty()) return
 
         viewModelScope.launch {
@@ -174,5 +186,9 @@ class CameraViewModel @Inject constructor(
         }
 
         clearAllAnchors()
+    }
+
+    fun setAnimationOffset(offset: Offset) {
+        this.mutableUiState.value = this.mutableUiState.value.copy(animationOffset = offset)
     }
 }
