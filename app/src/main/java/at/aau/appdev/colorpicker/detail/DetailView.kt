@@ -19,6 +19,8 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.text.input.TextFieldState
 import androidx.compose.material3.ButtonGroupDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -46,12 +48,15 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.layout.layout
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Constraints
@@ -75,6 +80,10 @@ fun DetailScreen(
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
 
+    // State for the current color and name
+    var currentColor by remember { mutableStateOf(generateColor()) }
+    var colorName by remember { mutableStateOf("Beautiful Color") }
+
     Scaffold { padding ->
         // https://developer.android.com/develop/ui/compose/animation/shared-elements
         SharedTransitionLayout {
@@ -88,21 +97,23 @@ fun DetailScreen(
                                 animatedVisibilityScope = this@AnimatedContent
                             )
                             .clip(RoundedCornerShape(8.dp))
-                            .background(generateColor())
+                            .background(currentColor)
                             .fillMaxSize()
                             .clickable() {
                                 isFullscreen = !isFullscreen
                             }) {
                         Text(
-                            "Name of the Color",
+                            colorName,
                             fontSize = 36.sp,
                             fontWeight = FontWeight.Bold,
+                            color = if (currentColor.luminance()>0.5f) Color.Black else Color.White,
                             modifier = Modifier
                                 .sharedElement(
                                     rememberSharedContentState(key = "color-name"),
                                     animatedVisibilityScope = this@AnimatedContent
                                 )
                                 .align(Alignment.BottomStart)
+                                .padding(24.dp)
                         )
                     }
 
@@ -120,7 +131,10 @@ fun DetailScreen(
                             horizontalArrangement = Arrangement.Start,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            IconButton(onClick = {}, modifier = Modifier.size(64.dp)) {
+                            IconButton(
+                                onClick = { navController.popBackStack() },
+                                modifier = Modifier.size(64.dp)
+                            ) {
                                 Icon(
                                     painter = painterResource(R.drawable.ic_arrow_back),
                                     contentDescription = "Back to Gallery",
@@ -136,17 +150,23 @@ fun DetailScreen(
                                     animatedVisibilityScope = this@AnimatedContent
                                 )
                                 .clip(RoundedCornerShape(8.dp))
-                                .background(generateColor())
+                                .background(currentColor)
                                 .fillMaxWidth()
                                 .aspectRatio(2.0f)
                                 .clickable() {
                                     isFullscreen = !isFullscreen
                                 })
 
-                        Text(
-                            "Name of the Color",
-                            fontSize = 36.sp,
-                            fontWeight = FontWeight.Bold,
+                        // Editable color name
+                        val keyboardController = LocalSoftwareKeyboardController.current
+                        OutlinedTextField(
+                            value = colorName,
+                            onValueChange = { colorName = it },
+                            label = { Text("Name of the Color")},
+                            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+                            keyboardActions = KeyboardActions(
+                                onDone = { keyboardController?.hide() }
+                            ),
                             modifier = Modifier.sharedElement(
                                 rememberSharedContentState(key = "color-name"),
                                 animatedVisibilityScope = this@AnimatedContent
@@ -177,7 +197,10 @@ fun DetailScreen(
                         }
                         HorizontalPager(state = pagerState) { page ->
                             when (page) {
-                                0 -> ColorTab()
+                                0 -> ColorTab(
+                                    currentColor = currentColor,
+                                    onColorChange = { currentColor = it }
+                                )
                                 1 -> PaletteTab()
                                 2 -> PhotoTab()
                             }
@@ -192,7 +215,10 @@ fun DetailScreen(
 
 @OptIn(ExperimentalMaterial3ExpressiveApi::class, ExperimentalMaterial3Api::class)
 @Composable
-fun ColorTab() {
+fun ColorTab(
+    currentColor: Color,
+    onColorChange: (Color) -> Unit
+) {
     Column {
         val options = listOf("RGB", "HSL", "HSB", "CMYK", "LAB")
         var selectedIndex by remember { mutableIntStateOf(0) }
