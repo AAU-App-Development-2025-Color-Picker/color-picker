@@ -20,4 +20,7 @@ interface ColorDao {
 
     @Query("SELECT * FROM colors WHERE id = :id")
     suspend fun getColorWithPhoto(id: Long): ColorWithPhoto
+
+    @Query("SELECT * FROM colors WHERE id = :id")
+    suspend fun getColorById(id: Long): ColorEntity
 }
