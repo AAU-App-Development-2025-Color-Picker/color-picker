@@ -4,6 +4,7 @@ import at.aau.appdev.colorpicker.persistence.dao.ColorDao
 import at.aau.appdev.colorpicker.persistence.dao.PaletteDao
 import at.aau.appdev.colorpicker.persistence.dao.PhotoDao
 import at.aau.appdev.colorpicker.persistence.entity.ColorEntity
+import at.aau.appdev.colorpicker.persistence.entity.ColorWithPhoto
 import at.aau.appdev.colorpicker.persistence.entity.PaletteEntity
 import at.aau.appdev.colorpicker.persistence.entity.PaletteWithColors
 import at.aau.appdev.colorpicker.persistence.entity.PhotoEntity
@@ -25,6 +26,14 @@ class Repository @Inject constructor(
 
     suspend fun getColorsWithoutPalette(): List<ColorEntity> {
         return colorDao.getAllWithoutPalette();
+    }
+
+    suspend fun getColorWithPhoto(id: Long): ColorWithPhoto{
+        return colorDao.getColorWithPhoto(id)
+    }
+
+    suspend fun getColorById(id: Long): ColorEntity{
+        return colorDao.getColorById(id)
     }
 
     suspend fun insertPalette(palette: PaletteEntity): Long {
