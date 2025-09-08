@@ -2,7 +2,7 @@ package at.aau.appdev.colorpicker.gallery
 
 import android.util.Log
 import androidx.compose.foundation.background
-import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -87,7 +87,7 @@ fun GalleryScreen(
                         )
                     }
                 }
-                CardStaggeredGrid(uiState.items)
+                CardStaggeredGrid(uiState.items, navController)
             }
             CameraNavButton(navController)
             ActionButton(navController)
@@ -151,7 +151,7 @@ fun GreetingPreview() {
 }
 
 @Composable
-fun CardStaggeredGrid(items: List<GalleryItem> = emptyList()) {
+fun CardStaggeredGrid(items: List<GalleryItem> = emptyList(), navController: NavController) {
     LazyVerticalStaggeredGrid(
         columns = StaggeredGridCells.Fixed(2),
         modifier = Modifier
@@ -164,22 +164,30 @@ fun CardStaggeredGrid(items: List<GalleryItem> = emptyList()) {
             when (item) {
                 is GalleryItem.Swatch -> {
                     val color = Color(
-                        red = item.color.red,
-                        green = item.color.green,
-                        blue = item.color.blue,
+                        item.color.red,
+                        item.color.green,
+                        item.color.blue,
                     )
-                    ColorSwatch(color = color)
+                    ColorSwatch(
+                        color = color,
+                        colorId = item.color.id,
+                        navController = navController
+                    )
                 }
 
                 is GalleryItem.Palette -> {
-                    val colors = item.palette.colors.map { colorEntity ->
-                        Color(
+                    item.palette.colors.forEach { colorEntity ->
+                        val color = Color(
                             red = colorEntity.red,
                             green = colorEntity.green,
                             blue = colorEntity.blue,
                         )
+                        ColorSwatch(
+                            color = color,
+                            colorId = colorEntity.id,
+                            navController = navController
+                        )
                     }
-                    ColorFan(colors = colors)
                 }
             }
         }
@@ -197,33 +205,41 @@ val offsets = arrayOf(
 
 @OptIn(ExperimentalStdlibApi::class)
 @Composable
-fun ColorSwatch(modifier: Modifier = Modifier, color: Color) {
+fun ColorSwatch(
+    modifier: Modifier = Modifier,
+    color: Color,
+    colorId: Long,
+    navController: NavController
+) {
     // TODO: 'isActive' should be set elsewhere!
-    val isActive = false
     Box(
         modifier = modifier
             .aspectRatio(1.6f)
             .padding(8.dp)
             .clip(RoundedCornerShape(16.dp))
             .background(color)
-            .pointerInput(isActive) {
-                detectDragGesturesAfterLongPress(onDragStart = {
-                    Log.d(
-                        "GalleryView.ColorSwatch",
-                        "Drag gesture after long press detected: onDragStart()"
-                    )
-                }, onDragEnd = {
-                    Log.d(
-                        "GalleryView.ColorSwatch",
-                        "Drag gesture after long press detected: onDragEnd()"
-                    )
-                }, onDrag = { change, offset ->
-                    Log.d(
-                        "GalleryView.ColorSwatch",
-                        "Drag gesture after long press detected: onDrag()"
-                    )
-                })
-            }) {
+            .clickable {
+                navController.navigate("detail/$colorId")
+            }
+//            .pointerInput(isActive) {
+//                detectDragGesturesAfterLongPress(onDragStart = {
+//                    Log.d(
+//                        "GalleryView.ColorSwatch",
+//                        "Drag gesture after long press detected: onDragStart()"
+//                    )
+//                }, onDragEnd = {
+//                    Log.d(
+//                        "GalleryView.ColorSwatch",
+//                        "Drag gesture after long press detected: onDragEnd()"
+//                    )
+//                }, onDrag = { change, offset ->
+//                    Log.d(
+//                        "GalleryView.ColorSwatch",
+//                        "Drag gesture after long press detected: onDrag()"
+//                    )
+//                })
+//            }
+    ) {
         Label(color.toArgb().toHexString(HexFormat.UpperCase).slice(IntRange(2, 7)))
     }
 }

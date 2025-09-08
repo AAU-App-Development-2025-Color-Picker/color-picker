@@ -19,6 +19,8 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.text.input.TextFieldState
 import androidx.compose.material3.ButtonGroupDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -46,12 +48,15 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.layout.layout
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Constraints
@@ -62,7 +67,6 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavController
 import androidx.navigation.compose.rememberNavController
 import at.aau.appdev.colorpicker.R
-import at.aau.appdev.colorpicker.generateColor
 import at.aau.appdev.colorpicker.ui.theme.ColorPickerTheme
 import kotlinx.coroutines.launch
 
@@ -74,6 +78,10 @@ fun DetailScreen(
     viewModel: DetailViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+
+    // State for the current color and name
+    var currentColor by remember { mutableStateOf(Color(uiState.red, uiState.green, uiState.blue)) }
+    var colorName by remember { mutableStateOf(uiState.hex) }
 
     Scaffold { padding ->
         // https://developer.android.com/develop/ui/compose/animation/shared-elements
@@ -88,21 +96,23 @@ fun DetailScreen(
                                 animatedVisibilityScope = this@AnimatedContent
                             )
                             .clip(RoundedCornerShape(8.dp))
-                            .background(generateColor())
+                            .background(currentColor)
                             .fillMaxSize()
                             .clickable() {
                                 isFullscreen = !isFullscreen
                             }) {
                         Text(
-                            "Name of the Color",
+                            colorName,
                             fontSize = 36.sp,
                             fontWeight = FontWeight.Bold,
+                            color = if (currentColor.luminance()>0.5f) Color.Black else Color.White,
                             modifier = Modifier
                                 .sharedElement(
                                     rememberSharedContentState(key = "color-name"),
                                     animatedVisibilityScope = this@AnimatedContent
                                 )
                                 .align(Alignment.BottomStart)
+                                .padding(24.dp)
                         )
                     }
 
@@ -120,7 +130,10 @@ fun DetailScreen(
                             horizontalArrangement = Arrangement.Start,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            IconButton(onClick = {}, modifier = Modifier.size(64.dp)) {
+                            IconButton(
+                                onClick = { navController.popBackStack() },
+                                modifier = Modifier.size(64.dp)
+                            ) {
                                 Icon(
                                     painter = painterResource(R.drawable.ic_arrow_back),
                                     contentDescription = "Back to Gallery",
@@ -136,17 +149,23 @@ fun DetailScreen(
                                     animatedVisibilityScope = this@AnimatedContent
                                 )
                                 .clip(RoundedCornerShape(8.dp))
-                                .background(generateColor())
+                                .background(currentColor)
                                 .fillMaxWidth()
                                 .aspectRatio(2.0f)
                                 .clickable() {
                                     isFullscreen = !isFullscreen
                                 })
 
-                        Text(
-                            "Name of the Color",
-                            fontSize = 36.sp,
-                            fontWeight = FontWeight.Bold,
+                        // Editable color name
+                        val keyboardController = LocalSoftwareKeyboardController.current
+                        OutlinedTextField(
+                            value = colorName,
+                            onValueChange = { colorName = it },
+                            label = { Text("Name of the Color") },
+                            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+                            keyboardActions = KeyboardActions(
+                                onDone = { keyboardController?.hide() }
+                            ),
                             modifier = Modifier.sharedElement(
                                 rememberSharedContentState(key = "color-name"),
                                 animatedVisibilityScope = this@AnimatedContent
@@ -177,7 +196,10 @@ fun DetailScreen(
                         }
                         HorizontalPager(state = pagerState) { page ->
                             when (page) {
-                                0 -> ColorTab()
+                                0 -> ColorTab(
+                                    currentColor = currentColor,
+                                    onColorChange = { currentColor = it }
+                                )
                                 1 -> PaletteTab()
                                 2 -> PhotoTab()
                             }
@@ -192,7 +214,13 @@ fun DetailScreen(
 
 @OptIn(ExperimentalMaterial3ExpressiveApi::class, ExperimentalMaterial3Api::class)
 @Composable
-fun ColorTab() {
+fun ColorTab(
+    viewModel: DetailViewModel = hiltViewModel(),
+    currentColor: Color,
+    onColorChange: (Color) -> Unit
+) {
+
+    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     Column {
         val options = listOf("RGB", "HSL", "HSB", "CMYK", "LAB")
         var selectedIndex by remember { mutableIntStateOf(0) }
@@ -224,9 +252,9 @@ fun ColorTab() {
 
         // TODO: The slider state should be bound to the 'viewModel'!
         val sliderStates = listOf(
-            rememberSliderState(0.5f),
-            rememberSliderState(0.6f),
-            rememberSliderState(0.9f),
+            rememberSliderState(uiState.red),
+            rememberSliderState(uiState.green),
+            rememberSliderState(uiState.blue),
         )
 
         Row(
@@ -235,14 +263,16 @@ fun ColorTab() {
                 .fillMaxWidth()
                 .padding(vertical = 16.dp)
         ) {
-            sliderStates.forEach { sliderState -> ColorSlider(sliderState) }
+            ColorSlider("${(sliderStates[0].value * 255).toInt()}", sliderStates[0])
+            ColorSlider("${(sliderStates[1].value * 255).toInt()}", sliderStates[1])
+            ColorSlider("${(sliderStates[2].value * 255).toInt()}", sliderStates[2])
         }
     }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun RowScope.ColorSlider(state: SliderState) {
+fun RowScope.ColorSlider(rgbValue: String, state: SliderState) {
     Column(
         verticalArrangement = Arrangement.spacedBy(16.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -250,7 +280,7 @@ fun RowScope.ColorSlider(state: SliderState) {
     ) {
         OutlinedTextField(
             TextFieldState(),
-            label = { Text("256") },
+            label = { Text(rgbValue) },
             modifier = Modifier.padding(horizontal = 16.dp)
         )
         Slider(
