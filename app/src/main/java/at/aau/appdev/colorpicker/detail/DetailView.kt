@@ -67,7 +67,6 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavController
 import androidx.navigation.compose.rememberNavController
 import at.aau.appdev.colorpicker.R
-import at.aau.appdev.colorpicker.generateColor
 import at.aau.appdev.colorpicker.ui.theme.ColorPickerTheme
 import kotlinx.coroutines.launch
 
@@ -81,8 +80,8 @@ fun DetailScreen(
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
 
     // State for the current color and name
-    var currentColor by remember { mutableStateOf(generateColor()) }
-    var colorName by remember { mutableStateOf("Beautiful Color") }
+    var currentColor by remember { mutableStateOf(Color(uiState.red, uiState.green, uiState.blue)) }
+    var colorName by remember { mutableStateOf(uiState.hex) }
 
     Scaffold { padding ->
         // https://developer.android.com/develop/ui/compose/animation/shared-elements
@@ -162,7 +161,7 @@ fun DetailScreen(
                         OutlinedTextField(
                             value = colorName,
                             onValueChange = { colorName = it },
-                            label = { Text("Name of the Color")},
+                            label = { Text("Name of the Color") },
                             keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
                             keyboardActions = KeyboardActions(
                                 onDone = { keyboardController?.hide() }
@@ -216,9 +215,12 @@ fun DetailScreen(
 @OptIn(ExperimentalMaterial3ExpressiveApi::class, ExperimentalMaterial3Api::class)
 @Composable
 fun ColorTab(
+    viewModel: DetailViewModel = hiltViewModel(),
     currentColor: Color,
     onColorChange: (Color) -> Unit
 ) {
+
+    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     Column {
         val options = listOf("RGB", "HSL", "HSB", "CMYK", "LAB")
         var selectedIndex by remember { mutableIntStateOf(0) }
@@ -250,9 +252,9 @@ fun ColorTab(
 
         // TODO: The slider state should be bound to the 'viewModel'!
         val sliderStates = listOf(
-            rememberSliderState(0.5f),
-            rememberSliderState(0.6f),
-            rememberSliderState(0.9f),
+            rememberSliderState(uiState.red),
+            rememberSliderState(uiState.green),
+            rememberSliderState(uiState.blue),
         )
 
         Row(
@@ -261,14 +263,16 @@ fun ColorTab(
                 .fillMaxWidth()
                 .padding(vertical = 16.dp)
         ) {
-            sliderStates.forEach { sliderState -> ColorSlider(sliderState) }
+            ColorSlider("${(sliderStates[0].value * 255).toInt()}", sliderStates[0])
+            ColorSlider("${(sliderStates[1].value * 255).toInt()}", sliderStates[1])
+            ColorSlider("${(sliderStates[2].value * 255).toInt()}", sliderStates[2])
         }
     }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun RowScope.ColorSlider(state: SliderState) {
+fun RowScope.ColorSlider(rgbValue: String, state: SliderState) {
     Column(
         verticalArrangement = Arrangement.spacedBy(16.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -276,7 +280,7 @@ fun RowScope.ColorSlider(state: SliderState) {
     ) {
         OutlinedTextField(
             TextFieldState(),
-            label = { Text("256") },
+            label = { Text(rgbValue) },
             modifier = Modifier.padding(horizontal = 16.dp)
         )
         Slider(
